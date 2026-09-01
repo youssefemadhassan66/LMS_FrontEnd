@@ -1,0 +1,472 @@
+/* =====================================================================
+   DASHBOARD PREVIEW
+   Colours are inherited from the landing system (.hm) where this is
+   mounted, with fallbacks so the component still renders correctly if it
+   is ever dropped somewhere else.
+   ===================================================================== */
+
+.dp {
+  --dp-hair: var(--hm-hair, rgba(37, 99, 235, 0.16));
+  --dp-hair-strong: var(--hm-hair-strong, rgba(37, 99, 235, 0.3));
+  --dp-accent: var(--hm-accent, #2563eb);
+  --dp-accent-soft: var(--hm-accent-soft, rgba(37, 99, 235, 0.1));
+  --dp-ink: var(--text-primary);
+  --dp-dim: var(--text-muted);
+
+  /* Tag tones. Each is a text colour, a wash and a line, so a tag reads as a
+     filled chip rather than as an outline that has to be squinted at. The
+     text colours are darkened past the raw --success / --warning tokens,
+     which are tuned for solid fills and fail contrast as type on a wash. */
+  --dp-good: #15803d;
+  --dp-good-bg: rgba(21, 128, 61, 0.1);
+  --dp-good-line: rgba(21, 128, 61, 0.28);
+  --dp-warn: #b45309;
+  --dp-warn-bg: rgba(180, 83, 9, 0.1);
+  --dp-warn-line: rgba(180, 83, 9, 0.28);
+  --dp-info-bg: rgba(37, 99, 235, 0.1);
+  --dp-info-line: rgba(37, 99, 235, 0.3);
+
+  border: 1px solid var(--dp-hair-strong);
+  border-radius: var(--radius-lg);
+  background: var(--hm-plate, rgba(255, 255, 255, 0.72));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
+}
+
+[data-theme='dark'] .dp {
+  --dp-good: #4ade80;
+  --dp-good-bg: rgba(74, 222, 128, 0.14);
+  --dp-good-line: rgba(74, 222, 128, 0.34);
+  --dp-warn: #fbbf24;
+  --dp-warn-bg: rgba(251, 191, 36, 0.14);
+  --dp-warn-line: rgba(251, 191, 36, 0.34);
+  --dp-info-bg: rgba(96, 165, 250, 0.16);
+  --dp-info-line: rgba(96, 165, 250, 0.38);
+}
+
+/* ── Title bar ── */
+.dp-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--dp-hair);
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dp-dim);
+}
+
+.dp-dots {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.dp-dots span {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--dp-hair-strong);
+}
+
+/* Centred between the window title and the live dot, so the switch reads as
+   part of the frame's chrome rather than as content inside the dashboard. */
+.dp-roles {
+  display: inline-flex;
+  gap: 0.2rem;
+  margin: 0 auto;
+  padding: 0.25rem;
+  border: 1px solid var(--dp-hair);
+  border-radius: var(--radius-md);
+  background: var(--dp-accent-soft);
+}
+
+.dp-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.85rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--dp-dim);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.dp-role:hover {
+  color: var(--dp-ink);
+}
+
+.dp-role.is-active {
+  background: var(--hm-plate-solid, #fff);
+  color: var(--dp-accent);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+/* The frame's title bar is tight at phone widths, and the role switch matters
+   more there than the window title or the live dot. */
+@media (max-width: 640px) {
+  .dp-bar-title,
+  .dp-live {
+    display: none;
+  }
+
+  .dp-roles {
+    margin-left: 0;
+  }
+}
+
+.dp-live {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--dp-accent);
+}
+
+.dp-live i {
+  font-size: 0.4rem;
+}
+
+/* ── Body: rail + panel ── */
+.dp-body {
+  display: grid;
+  grid-template-columns: minmax(0, 11.5rem) minmax(0, 1fr);
+}
+
+@media (max-width: 720px) {
+  .dp-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.dp-nav {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 0.75rem;
+  border-right: 1px solid var(--dp-hair);
+}
+
+@media (max-width: 720px) {
+  .dp-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--dp-hair);
+  }
+}
+
+.dp-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font-family: var(--font-heading);
+  font-size: 0.88rem;
+  font-weight: 700;
+  white-space: nowrap;
+  text-align: left;
+  color: var(--dp-dim);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.dp-nav-item:hover {
+  color: var(--dp-ink);
+  background: var(--dp-accent-soft);
+}
+
+.dp-nav-item.is-active {
+  color: var(--dp-accent);
+  background: var(--dp-accent-soft);
+}
+
+.dp-nav-item i {
+  width: 1rem;
+  text-align: center;
+}
+
+/* Drains over one rotation so the switch is never a surprise. */
+.dp-rotate {
+  position: absolute;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--dp-accent);
+  transform-origin: left center;
+  animation: dp-drain 4.2s linear forwards;
+}
+
+@media (max-width: 720px) {
+  .dp-rotate {
+    display: none;
+  }
+}
+
+@keyframes dp-drain {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+/* ── Panels ── */
+.dp-panel {
+  padding: 1.4rem;
+  min-height: 21rem;
+  animation: dp-panel-in 0.42s cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+@keyframes dp-panel-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.dp-panel-cap {
+  display: inline-flex;
+  padding-left: 0.6rem;
+  margin-bottom: 0.5rem;
+  border-left: 2px solid var(--dp-accent);
+  font-family: var(--font-heading);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dp-dim);
+}
+
+/* KPIs */
+.dp-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.4rem;
+}
+
+.dp-kpi {
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--dp-hair);
+  border-radius: var(--radius-md);
+  background: var(--dp-accent-soft);
+}
+
+.dp-kpi-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dp-dim);
+}
+
+.dp-kpi-value {
+  display: block;
+  margin-top: 0.35rem;
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  /* Digits change every frame while counting; tabular figures stop the box
+     from jittering as the glyph widths change under it. */
+  font-variant-numeric: tabular-nums;
+  color: var(--dp-ink);
+}
+
+.dp-kpi-foot {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  color: var(--dp-dim);
+}
+
+/* Rows shared by the feed, tasks and sessions */
+.dp-rows,
+.dp-sessions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--dp-hair);
+}
+
+.dp-rows li,
+.dp-sessions li {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--dp-hair);
+}
+
+.dp-row-text {
+  min-width: 0;
+}
+
+.dp-row-text strong {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--dp-ink);
+}
+
+.dp-row-text span {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.76rem;
+  color: var(--dp-dim);
+}
+
+.dp-tag {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 0.28rem 0.62rem;
+  border: 1px solid var(--dp-hair-strong);
+  border-radius: var(--radius-sm);
+  background: var(--dp-accent-soft);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dp-dim);
+}
+
+.dp-tag.is-good {
+  color: var(--dp-good);
+  background: var(--dp-good-bg);
+  border-color: var(--dp-good-line);
+}
+
+.dp-tag.is-warn {
+  color: var(--dp-warn);
+  background: var(--dp-warn-bg);
+  border-color: var(--dp-warn-line);
+}
+
+.dp-tag.is-info {
+  color: var(--dp-accent);
+  background: var(--dp-info-bg);
+  border-color: var(--dp-info-line);
+}
+
+/* Tasks summary */
+.dp-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.4rem;
+}
+
+.dp-summary > div {
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--dp-hair);
+  border-radius: var(--radius-md);
+}
+
+.dp-summary-value {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: var(--dp-ink);
+}
+
+.dp-summary-label {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.74rem;
+  color: var(--dp-dim);
+}
+
+/* Sessions */
+.dp-when {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 3.1rem;
+  padding: 0.4rem 0;
+  border-radius: var(--radius-md);
+  background: var(--dp-accent-soft);
+  line-height: 1.2;
+}
+
+.dp-when strong {
+  font-family: var(--font-heading);
+  font-size: 0.92rem;
+  font-weight: 900;
+  color: var(--dp-accent);
+}
+
+.dp-when span {
+  font-size: 0.7rem;
+  color: var(--dp-dim);
+}
+
+/* Progress bars */
+.dp-bars {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.dp-bar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--dp-ink);
+}
+
+.dp-bar-head span:last-child {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--dp-dim);
+}
+
+.dp-bar-track {
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--dp-accent-soft);
+  overflow: hidden;
+}
+
+.dp-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--dp-accent);
+  transition: width 0.9s cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dp-panel,
+  .dp-rotate {
+    animation: none;
+  }
+
+  .dp-bar-fill {
+    transition: none;
+  }
+}

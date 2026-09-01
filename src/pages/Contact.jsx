@@ -1,162 +1,293 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
+import { Link } from 'react-router-dom';
 import './Home.css';
+import './Landing.css';
+
+/**
+ * Contact, on the same landing system as the home and about pages.
+ *
+ * The opening is the form. Nobody arrives here to read, so the copy beside it
+ * is only what you need before you type: who picks the message up, how long
+ * they take, and the two ways to skip the form entirely. Everything below is
+ * the shared furniture — the row cards, the note block, the closing plate.
+ */
+
+const CHANNELS = [
+  {
+    fa: 'fa-solid fa-graduation-cap',
+    title: 'Joining a class',
+    desc: 'Which track suits your child, what a session looks like, and how to book a free first lesson.',
+  },
+  {
+    fa: 'fa-solid fa-user-shield',
+    title: 'Parent accounts',
+    desc: 'Attendance, instructor notes, progress and billing — how the parent dashboard works and what it shows.',
+  },
+  {
+    fa: 'fa-solid fa-screwdriver-wrench',
+    title: 'Technical help',
+    desc: 'Trouble signing in, a lesson that will not load, or anything on the platform behaving oddly.',
+  },
+  {
+    fa: 'fa-solid fa-school',
+    title: 'Schools and partners',
+    desc: 'Running AlgoGambit with a group, a school or a club, and what that costs.',
+  },
+];
+
+const FAQ = [
+  {
+    q: 'How quickly will someone reply?',
+    a: 'Within one working day, and usually the same day. Sunday to Thursday, 10:00–18:00 Cairo time. Anything sent over the weekend is answered first thing Sunday.',
+  },
+  {
+    q: 'Does my child need any experience?',
+    a: 'No. Most students start with none at all — the first track assumes nothing beyond being able to use a computer. Students who already code are placed further along after a short chat.',
+  },
+  {
+    q: 'What ages do you teach?',
+    a: 'Eight to eighteen. Groups are set by age and by level, so an eight-year-old and a fifteen-year-old are never in the same lesson.',
+  },
+  {
+    q: 'Can we try a lesson before paying?',
+    a: 'Yes. The first session is free and there is nothing to install — everything runs in the browser. Ask for it in your message and we will book a time that suits you.',
+  },
+  {
+    q: 'What do we need at home?',
+    a: 'A computer with a browser and a working internet connection. A headset helps in a live session, but a laptop microphone is fine.',
+  },
+  {
+    q: 'Can parents see what happens in class?',
+    a: 'That is what the parent dashboard is for: attendance, the instructor’s notes after each session, progress through the track and the billing history, all in one place.',
+  },
+];
+
+const SUBJECTS = [
+  'Joining a class',
+  'Parent account',
+  'Technical help',
+  'Schools and partners',
+  'Something else',
+];
 
 const Contact = () => {
-  const [submitted, setSubmitted] = useState(false);
+  const [sent, setSent] = useState(false);
+  // One prefix per mounted form, so every label points at its own field even
+  // if this ever renders twice on a page.
+  const id = useId();
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 4000);
+    setSent(true);
+    e.target.reset();
   };
 
   return (
-    <div className="home-container">
-      {/* ─── Hero ─── */}
-      <section className="hero-section">
-        <div className="hero-badge">Get In Touch</div>
-        <h1 className="hero-title">
-          We'd Love to <span className="gradient-text">Hear From You</span>
-        </h1>
-        <p className="hero-subtitle">
-          Have a question about AlgoGambit? Want to request a demo, report an issue, 
-          or explore a partnership? Our team is here to help.
-        </p>
-      </section>
+    <div className="home-container is-home-page hm">
 
-      {/* ─── Contact Grid ─── */}
-      <section className="features-section" style={{ maxWidth: '1000px', margin: '0 auto 4rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) 1.8fr', gap: '2rem', alignItems: 'start' }}>
-          
-          {/* ─── Info Side ─── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            {/* Company Info Card */}
-            <div className="feature-card glass-panel">
-              <div className="feature-icon"><i className="fa-solid fa-building" /></div>
-              <h3>AlgoGambit</h3>
-              <p>A modern learning management platform built for educational institutions worldwide.</p>
-            </div>
-
-            {/* Contact Details */}
-            <div className="glass-panel" style={{ padding: '2rem', borderRadius: 'var(--radius-xl)' }}>
-              <h3 style={{ fontSize: '1.15rem', marginBottom: '1.25rem', fontWeight: 700 }}>Contact Details</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <div>
-                  <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.25rem' }}>Email</div>
-                  <a href="mailto:support@algogambit.io" style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--info)' }}>support@algogambit.io</a>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.25rem' }}>Phone</div>
-                  <p style={{ fontWeight: 600, fontSize: '1rem' }}>+20 2 1234 5678</p>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.25rem' }}>Location</div>
-                  <p style={{ fontWeight: 600, fontSize: '1rem' }}>Cairo, Egypt</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Links */}
-            <div className="glass-panel" style={{ padding: '2rem', borderRadius: 'var(--radius-xl)' }}>
-              <h3 style={{ fontSize: '1.15rem', marginBottom: '1rem', fontWeight: 700 }}>Quick Links</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <a href="mailto:support@algogambit.io" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)', fontSize: '0.95rem', fontWeight: 500, transition: 'all 0.2s ease' }}>
-                  <i className="fa-solid fa-envelope" /> Email Support
-                </a>
-                <a href="#faq" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)', fontSize: '0.95rem', fontWeight: 500, transition: 'all 0.2s ease' }}>
-                  <i className="fa-solid fa-circle-question" /> FAQ
-                </a>
-                <a href="#docs" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)', fontSize: '0.95rem', fontWeight: 500, transition: 'all 0.2s ease' }}>
-                  <i className="fa-solid fa-book-open" /> Documentation
-                </a>
-              </div>
-            </div>
-          </div>
-
-          {/* ─── Contact Form Side ─── */}
-          <div className="glass-panel" style={{ padding: '2.5rem', borderRadius: 'var(--radius-xl)' }}>
-            <h3 style={{ fontSize: '1.35rem', marginBottom: '0.5rem', fontWeight: 700 }}>Send Us a Message</h3>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.95rem' }}>
-              Fill out the form below and we'll get back to you within 24 hours.
+      {/* ══════════ HERO: THE FORM ══════════ */}
+      <section className="ct-hero">
+        <div className="ct-hero-inner">
+          <div>
+            <span className="hm-tick"><i className="fa-solid fa-comments" /> Contact</span>
+            <h1 className="ct-title">
+              Talk to a person,<br />
+              <em>not a ticket queue.</em>
+            </h1>
+            <p className="ct-lead">
+              Questions about a track, a booking, an invoice or something that will not load —
+              the same small team answers all of it, usually the same day.
             </p>
 
-            {submitted && (
-              <div style={{ 
-                padding: '1rem 1.25rem', 
-                borderRadius: 'var(--radius-md)', 
-                background: 'rgba(16, 185, 129, 0.1)', 
-                border: '1px solid rgba(16, 185, 129, 0.3)', 
-                color: 'var(--success)', 
-                fontWeight: 600, 
-                marginBottom: '1.5rem',
-                animation: 'fadeIn 0.3s ease'
-              }}>
-                <i className="fa-solid fa-circle-check" /> Thank you! Your message has been sent successfully.
-              </div>
-            )}
+            <ul className="ct-lines">
+              <li className="ct-line">
+                <i className="fa-solid fa-envelope" aria-hidden="true" />
+                <span>
+                  <span className="ct-line-key">Email</span>
+                  <a className="ct-line-value" href="mailto:hello@algogambit.online">
+                    hello@algogambit.online
+                  </a>
+                </span>
+              </li>
+              <li className="ct-line">
+                <i className="fa-solid fa-phone" aria-hidden="true" />
+                <span>
+                  <span className="ct-line-key">Phone</span>
+                  <a className="ct-line-value" href="tel:+20211234567">+20 2 1123 4567</a>
+                </span>
+              </li>
+              <li className="ct-line">
+                <i className="fa-solid fa-clock" aria-hidden="true" />
+                <span>
+                  <span className="ct-line-key">Hours</span>
+                  <span className="ct-line-value">Sun–Thu, 10:00–18:00 (Cairo)</span>
+                </span>
+              </li>
+            </ul>
+          </div>
 
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  <label style={{ fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>First Name</label>
-                  <input type="text" required style={{ padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.95rem', outline: 'none', transition: 'border-color 0.2s ease' }} placeholder="John" />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  <label style={{ fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Last Name</label>
-                  <input type="text" required style={{ padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.95rem', outline: 'none', transition: 'border-color 0.2s ease' }} placeholder="Doe" />
-                </div>
-              </div>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                <label style={{ fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Email Address</label>
-                <input type="email" required style={{ padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.95rem', outline: 'none', transition: 'border-color 0.2s ease' }} placeholder="john@example.com" />
+          <div className="ct-form">
+            <span className="hm-tick"><i className="fa-solid fa-paper-plane" /> Send a message</span>
+            <h2 className="ct-form-title">Tell us what you need.</h2>
+            <p className="ct-form-sub">
+              A few lines is plenty. The more you say about your child&apos;s age and experience,
+              the more useful the first reply will be.
+            </p>
+
+            {/* Polite rather than assertive: the confirmation is worth hearing,
+                but not worth cutting off whatever is being read. */}
+            <div role="status" aria-live="polite">
+              {sent && (
+                <p className="ct-sent">
+                  <i className="fa-solid fa-circle-check" aria-hidden="true" />
+                  Thank you — your message is on its way. We will reply within one working day.
+                </p>
+              )}
+            </div>
+
+            <form className="ct-fields" onSubmit={handleSubmit}>
+              <div className="ct-pair">
+                <p className="ct-field">
+                  <label htmlFor={`${id}-name`}>Your name</label>
+                  <input
+                    id={`${id}-name`}
+                    name="name"
+                    type="text"
+                    required
+                    autoComplete="name"
+                    placeholder="Sara Hassan"
+                  />
+                </p>
+                <p className="ct-field">
+                  <label htmlFor={`${id}-email`}>Email</label>
+                  <input
+                    id={`${id}-email`}
+                    name="email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                  />
+                </p>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                <label style={{ fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Subject</label>
-                <select style={{ padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.95rem', outline: 'none', cursor: 'pointer' }}>
-                  <option>General Inquiry</option>
-                  <option>Request a Demo</option>
-                  <option>Technical Support</option>
-                  <option>Partnership</option>
-                  <option>Bug Report</option>
-                </select>
+              <div className="ct-pair">
+                <p className="ct-field">
+                  <label htmlFor={`${id}-role`}>I am a</label>
+                  <select id={`${id}-role`} name="role" defaultValue="Parent">
+                    <option>Parent</option>
+                    <option>Student</option>
+                    <option>Teacher or school</option>
+                    <option>Someone else</option>
+                  </select>
+                </p>
+                <p className="ct-field">
+                  <label htmlFor={`${id}-subject`}>About</label>
+                  <select id={`${id}-subject`} name="subject" defaultValue={SUBJECTS[0]}>
+                    {SUBJECTS.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </p>
               </div>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                <label style={{ fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Message</label>
-                <textarea required rows="5" style={{ padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', resize: 'vertical', fontSize: '0.95rem', outline: 'none', fontFamily: 'inherit', transition: 'border-color 0.2s ease' }} placeholder="Tell us how we can help..." />
-              </div>
-              
-              <button type="submit" className="nb-btn nb-btn-primary nb-btn-lg" style={{ width: '100%', marginTop: '0.5rem', justifyContent: 'center' }}>
-                Send Message
+
+              <p className="ct-field">
+                <label htmlFor={`${id}-message`}>Message</label>
+                <textarea
+                  id={`${id}-message`}
+                  name="message"
+                  required
+                  rows="5"
+                  placeholder="My daughter is 11 and has never coded before…"
+                />
+              </p>
+
+              <button type="submit" className="nb-btn nb-btn-primary nb-btn-lg ct-submit">
+                <i className="fa-solid fa-paper-plane" /> Send message
               </button>
             </form>
           </div>
         </div>
       </section>
 
-      {/* ─── FAQ ─── */}
-      <section className="features-section" id="faq">
-        <h2 className="section-title">Frequently Asked Questions</h2>
-        <div className="features-grid">
-          {[
-            { icon: 'free', title: 'Is AlgoGambit free to use?', desc: 'Yes! AlgoGambit offers a free tier for individual learners and small teams. Premium plans are available for larger institutions.' },
-            { icon: 'secure', title: 'How secure is my data?', desc: 'We use JWT-based authentication with refresh token rotation, encrypted data storage, and follow industry-standard security practices.' },
-            { icon: 'integrate', title: 'Can I integrate external courses?', desc: 'Absolutely. Track your progress on Coursera, Udemy, LinkedIn Learning, and more directly from your dashboard.' },
-          ].map(faq => (
-            <div key={faq.title} className="feature-card glass-panel">
-              <div className="feature-icon">
-                {faq.icon === 'free' && <i className="fa-solid fa-circle-check" />}
-                {faq.icon === 'secure' && <i className="fa-solid fa-shield-halved" />}
-                {faq.icon === 'integrate' && <i className="fa-solid fa-link" />}
-              </div>
-              <h3>{faq.title}</h3>
-              <p>{faq.desc}</p>
+      {/* ══════════ WHAT WE CAN HELP WITH ══════════ */}
+      <section className="hm-plate reveal slide-up">
+        <header className="hm-head">
+          <span className="hm-tick"><i className="fa-solid fa-circle-question" /> What we can help with</span>
+          <h2 className="hm-title">Four things people usually write about.</h2>
+          <p className="hm-sub">
+            Pick whichever is closest in the form above — it only decides who reads it first.
+          </p>
+        </header>
+
+        <div className="hm-rows is-quad">
+          {CHANNELS.map(c => (
+            <div key={c.title} className="hm-row">
+              <span className="hm-row-icon" aria-hidden="true"><i className={c.fa} /></span>
+              <h3>{c.title}</h3>
+              <p>{c.desc}</p>
             </div>
           ))}
         </div>
       </section>
+
+      {/* ══════════ FAQ ══════════ */}
+      <section className="hm-plate reveal slide-up" id="faq">
+        <header className="hm-head">
+          <span className="hm-tick"><i className="fa-solid fa-comment-dots" /> Before you write</span>
+          <h2 className="hm-title">Answers to the usual questions.</h2>
+        </header>
+
+        <div className="ct-faq">
+          {FAQ.map((f, i) => (
+            <details key={f.q} className="ct-q" open={i === 0}>
+              <summary>{f.q}</summary>
+              <p>{f.a}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+
+      {/* ══════════ WHERE WE ARE ══════════ */}
+      <section className="hm-plate reveal slide-up">
+        <div className="hm-note">
+          <span className="hm-note-icon" aria-hidden="true">
+            <i className="fa-solid fa-location-dot" />
+          </span>
+          <div className="hm-note-body">
+            <span className="hm-tick"><i className="fa-solid fa-globe" /> Where we are</span>
+            <h2 className="hm-note-title">Cairo, teaching online.</h2>
+            <p className="hm-note-text">
+              Every lesson is live and online, so where you are does not matter — students join
+              from anywhere with a browser and an internet connection. Sessions are scheduled in
+              Cairo time, and we will find a slot that works in yours.
+            </p>
+            <ul className="hm-note-tags">
+              <li><i className="fa-solid fa-video" aria-hidden="true" /> Live online lessons</li>
+              <li><i className="fa-solid fa-earth-africa" aria-hidden="true" /> Any time zone</li>
+              <li><i className="fa-solid fa-download" aria-hidden="true" /> Nothing to install</li>
+              <li><i className="fa-solid fa-reply" aria-hidden="true" /> Replies in one working day</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════ CLOSE ══════════ */}
+      <section className="hm-plate hm-close reveal slide-up">
+        <span className="hm-close-bg" aria-hidden="true" />
+        <span className="hm-tick"><i className="fa-solid fa-laptop-code" /> Or skip the form</span>
+        <h2 className="hm-title">You can also just start.</h2>
+        <p className="hm-sub">
+          The first session is free, and you can book it from your account in a couple of minutes.
+        </p>
+        <div className="hm-close-actions">
+          <Link to="/login" className="nb-btn nb-btn-primary nb-btn-lg">
+            <i className="fa-solid fa-arrow-right" /> Start learning
+          </Link>
+          <Link to="/about" className="nb-btn nb-btn-secondary nb-btn-lg">
+            <i className="fa-solid fa-circle-info" /> See what we teach
+          </Link>
+        </div>
+      </section>
+
     </div>
   );
 };
