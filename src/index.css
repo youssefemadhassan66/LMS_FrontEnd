@@ -280,7 +280,10 @@ a {
   transition: color var(--transition);
 }
 
-a:hover {
+/* Anchors styled as buttons carry their own hover colours. Without the
+   exclusion this rule repaints their label brand blue — which on a brand blue
+   fill is a label that disappears the moment the pointer touches it. */
+a:not([class*='btn']):hover {
   color: var(--brand-primary-hover);
 }
 
@@ -367,10 +370,17 @@ button {
   border: var(--card-border);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  transition:
+    transform 0.1s ease,
+    box-shadow 0.1s ease,
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
   cursor: pointer;
 }
 
+/* The lift is shared; the colour belongs to the variant, since what reads as
+   "darker" on a filled button and on an outlined one are opposite moves. */
 .nb-btn:hover {
   transform: translate(-2px, -2px);
   box-shadow: var(--shadow-md);
@@ -386,9 +396,24 @@ button {
   color: #FFFFFF;
 }
 
+/* Deeper on hover, label unchanged. --brand-primary-hover is a step darker
+   than --brand-primary in both themes, so this reads the same way in each. */
+.nb-btn-primary:hover {
+  background: var(--brand-primary-hover);
+  color: #FFFFFF;
+}
+
 .nb-btn-secondary {
   background: var(--bg-secondary);
   color: var(--text-primary);
+}
+
+/* The outlined one goes the other way: it picks up the brand on its rim and
+   its label rather than darkening a fill it does not really have. */
+.nb-btn-secondary:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
 }
 
 .nb-btn-lg {

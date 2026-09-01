@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(Get-ChildItem \"f:\\\\Study_OLD\\\\Web-Development-projects\\\\27-LMS\\\\Backend\" -Recurse -Filter \"*SubmissionService*\" -Name)"
-    ]
-  }
-}

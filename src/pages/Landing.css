@@ -1,0 +1,1627 @@
+/* =====================================================================
+   LANDING SYSTEM — the marketing pages (home, about, contact)
+
+   One structural vocabulary, shared by every public page:
+
+     rails     a pair of hairlines running the height of the page, with
+               every section's plate hung between them. It is what makes
+               a long scroll read as one document rather than a stack of
+               unrelated bands.
+     plate     a bounded block, separated from its neighbours by a
+               hairline rather than by a colour change or a shadow
+     tick      a small uppercase label with an accent rule on its left,
+               used for section eyebrows and for captions on figures
+     mock      an interface preview built from real product surfaces —
+               streaks, XP, sessions, tasks, reviews
+     split     a walkthrough: a step list that stays put on the left
+               while its panel changes on the right
+
+   Colour comes entirely from the global theme tokens, so both skins
+   follow the theme switch with the rest of the app.
+   ===================================================================== */
+
+.hm {
+  position: relative;
+  width: 100%;
+
+  /* ── Daylight ── */
+  --hm-hair: rgba(37, 99, 235, 0.16);
+  --hm-hair-strong: rgba(37, 99, 235, 0.3);
+  --hm-plate: rgba(255, 255, 255, 0.72);
+  --hm-plate-solid: #ffffff;
+  --hm-ink: var(--text-primary);
+  --hm-dim: var(--text-muted);
+  --hm-accent: #2563eb;
+  --hm-accent-soft: rgba(37, 99, 235, 0.1);
+  --hm-rail: rgba(37, 99, 235, 0.12);
+  /* Sections run to 90% of the window rather than a fixed measure, so the
+     page fills the screen it is on. The cap only engages past ~2130px, where
+     an unbounded 90% would stretch a paragraph well past reading width; drop
+     the min() for true full width on any display. */
+  --hm-max: min(90%, 120rem);
+  /* One inset, used by the plates, the rails and the strip caption alike.
+     Everything on the page measures from this, which is what keeps the left
+     edges of headings, figures, rows and grid cells on a single line. */
+  --hm-pad: clamp(1.15rem, 4vw, 3rem);
+  /* Cells carry their own padding, so a grid has to hang outside the plate by
+     that much for the text inside it to land on the same line as everything
+     else. Never more than the plate's own inset, or the grid escapes it. */
+  /* The colour of the paper the plates sit on. The map's discs ring themselves
+     in it to break the connector line where they cross it. */
+  --hm-page: #ecf0f7;
+  --hm-cell-pad: 1.5rem;
+  --hm-cell-bleed: min(var(--hm-cell-pad), var(--hm-pad));
+}
+
+[data-theme='dark'] .hm {
+  --hm-hair: rgba(141, 172, 232, 0.16);
+  --hm-hair-strong: rgba(141, 172, 232, 0.34);
+  --hm-plate: rgba(12, 20, 40, 0.55);
+  --hm-plate-solid: #0c1428;
+  --hm-accent: #60a5fa;
+  --hm-accent-soft: rgba(59, 130, 246, 0.16);
+  --hm-rail: rgba(141, 172, 232, 0.13);
+  --hm-page: var(--bg-primary);
+}
+
+/* The app paints a dot grid on <body> for every page. Two overlaid grids —
+   dots plus these hairlines — read as noise, and the rails are the structure
+   this page is built on, so the dots step aside where the landing system is
+   mounted. Browsers without :has() keep the dots; nothing breaks. */
+body:has(.hm) {
+  background-image: none;
+  /* Paper, a shade off the panels laid on it. The whole system reads as
+     objects set down on a surface, and a white panel on a white page has no
+     edge to read — so in daylight the page steps back and the panels stay
+     white. At night the page is already darker than everything on it. */
+  background-color: #ecf0f7;
+}
+
+[data-theme='dark'] body:has(.hm) {
+  background-color: var(--bg-primary);
+}
+
+/* ── Plates ───────────────────────────────────────────────────────── */
+.hm-plate {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: var(--hm-max);
+  margin: 0 auto;
+  padding: clamp(3.5rem, 8vw, 6.5rem) var(--hm-pad);
+  border-top: 1px solid var(--hm-hair);
+}
+
+.hm-plate:first-of-type {
+  border-top: 0;
+}
+
+/* ── Section headings ─────────────────────────────────────────────── */
+.hm-tick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-left: 0.7rem;
+  border-left: 2px solid var(--hm-accent);
+  font-family: var(--font-heading);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--hm-dim);
+}
+
+.hm-title {
+  margin: 1.1rem auto 0;
+  font-family: var(--font-heading);
+  font-size: clamp(1.9rem, 4vw, 3.1rem);
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--hm-ink);
+  text-wrap: balance;
+  max-width: 20ch;
+}
+
+.hm-sub {
+  margin: 1rem auto 0;
+  max-width: 46ch;
+  font-size: 1.03rem;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+/* Centred. The plates run to 90% of the window, and a 20ch title set flush
+   left in a band that wide is stranded against a half-empty row — the eye has
+   to travel back across the plate to find the figure it introduces. Centring
+   puts the heading over the middle of the thing it heads, and matches the
+   hero and the strip caption above it. */
+.hm-head {
+  margin-bottom: clamp(2.25rem, 5vw, 3.5rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MARQUEE STRIP
+   A full-width row under the hero, built from MARQUEE_COPIES identical
+   groups. The animation travels exactly one group's width, so the loop
+   closes on itself with no seam.
+
+   The count matters as much as the distance. Two groups only look
+   seamless while the pair is wider than the window plus one group: past
+   that the track runs out mid-travel and the right of the strip empties
+   before the loop restarts. Four groups keep the track ahead of the
+   window on anything up to an ultrawide, which is why the travel here is
+   a quarter and not a half.
+══════════════════════════════════════════════════════════════ */
+.hm-strip {
+  position: relative;
+  z-index: 1;
+  border-top: 1px solid var(--hm-hair);
+  border-bottom: 1px solid var(--hm-hair);
+  padding: 1.5rem 0;
+  overflow: hidden;
+}
+
+/* Centred: the row it labels runs the full width of the window and has no
+   left edge of its own to hang a label off, so a flush-left caption reads as
+   a stray line rather than as the heading of the band under it. */
+.hm-strip-cap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  width: 100%;
+  margin: 0 auto 1.4rem;
+  padding: 0 var(--hm-pad);
+  font-family: var(--font-heading);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--hm-dim);
+}
+
+/* Two short rules either side, so the caption sits in the band rather than
+   floating above it. They shrink away before they can crowd the text. */
+.hm-strip-cap::before,
+.hm-strip-cap::after {
+  content: '';
+  height: 1px;
+  width: clamp(0rem, 8vw, 3.5rem);
+  background: var(--hm-hair-strong);
+}
+
+.hm-marquee {
+  display: flex;
+  width: max-content;
+  animation: hm-marquee 34s linear infinite;
+}
+
+.hm-marquee:hover {
+  animation-play-state: paused;
+}
+
+.hm-marquee-row {
+  display: flex;
+  align-items: center;
+  gap: 2.75rem;
+  padding-right: 2.75rem;
+  list-style: none;
+  margin: 0;
+}
+
+.hm-marquee-row li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  white-space: nowrap;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+  color: var(--text-secondary);
+}
+
+.hm-marquee-row i {
+  font-size: 1.15rem;
+  color: var(--hm-accent);
+}
+
+@keyframes hm-marquee {
+  from { transform: translate3d(0, 0, 0); }
+  /* One group of four. Same distance per second as a half of two, so the
+     extra copies cost nothing in apparent speed. */
+  to { transform: translate3d(-25%, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-marquee {
+    animation: none;
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MOCK — the product preview
+
+   The preview itself is its own component (DashboardPreview), lazily
+   mounted by LazySection. What stays here is the frame around it: the
+   placeholder that holds its height while the chunk is in flight, and
+   the caption underneath.
+══════════════════════════════════════════════════════════════ */
+.hm-mock-skeleton {
+  height: 26rem;
+  border: 1px solid var(--hm-hair);
+  border-radius: 14px;
+  background:
+    linear-gradient(100deg, transparent 20%, var(--hm-accent-soft) 50%, transparent 80%),
+    var(--hm-plate);
+  background-size: 220% 100%, auto;
+  animation: hm-shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes hm-shimmer {
+  from { background-position: 120% 0, 0 0; }
+  to { background-position: -120% 0, 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-mock-skeleton { animation: none; }
+}
+
+.hm-figcap {
+  margin: 0.9rem 0 0;
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  color: var(--hm-dim);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ROADMAPS — goal cards over a threaded map
+   The old version put three words in a narrow left column beside a
+   panel of indented bars: the choice looked like a caption, and the
+   staircase left most of the plate empty. This is a chooser with the
+   weight of a choice, and a map that uses the width it is given.
+══════════════════════════════════════════════════════════════ */
+.hm-goals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+}
+
+.hm-goal {
+  --goal: var(--hm-accent);
+  display: grid;
+  gap: 0.35rem;
+  padding: 1.25rem 1.35rem 1.15rem;
+  border: 1px solid var(--hm-hair-strong);
+  border-radius: var(--radius-lg);
+  background: var(--hm-plate);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hm-goal:hover {
+  transform: translateY(-2px);
+  border-color: var(--goal);
+}
+
+/* The selected card takes the goal's colour on its rim rather than its fill:
+   the fill has to stay quiet, because the map below is already wearing this
+   colour and two saturated surfaces would fight. */
+.hm-goal.is-active {
+  border-color: var(--goal);
+  box-shadow: inset 0 0 0 1px var(--goal);
+}
+
+.hm-goal-icon {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-bottom: 0.4rem;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--goal) 14%, transparent);
+  color: var(--goal);
+  font-size: 1.05rem;
+}
+
+.hm-goal-title {
+  font-family: var(--font-heading);
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: var(--hm-ink);
+}
+
+.hm-goal-blurb {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--hm-dim);
+}
+
+.hm-goal-meta {
+  margin-top: 0.35rem;
+  font-family: var(--font-heading);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--goal);
+}
+
+/* ── The map ──────────────────────────────────────────────────────── */
+.hm-map {
+  --goal: var(--hm-accent);
+  position: relative;
+  list-style: none;
+  margin: clamp(2.5rem, 5vw, 3.5rem) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 1.9rem;
+}
+
+/* The thread. Down the page by default; the wide layout below turns it. */
+.hm-map::before {
+  content: '';
+  position: absolute;
+  left: 1.35rem;
+  top: 1.4rem;
+  bottom: 1.4rem;
+  width: 2px;
+  background: var(--goal);
+  opacity: 0.32;
+}
+
+.hm-stop {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 1.15rem;
+}
+
+.hm-stop-num {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 2.7rem;
+  height: 2.7rem;
+  border-radius: 50%;
+  background: var(--goal);
+  color: #ffffff;
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  font-weight: 900;
+  /* A ring in the page colour, so the thread stops at the disc instead of
+     running under it. */
+  box-shadow: 0 0 0 5px var(--hm-page);
+}
+
+.hm-stop-body {
+  display: grid;
+  gap: 0.3rem;
+  padding-top: 0.3rem;
+}
+
+.hm-stop-title {
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--hm-ink);
+}
+
+.hm-stop-blurb {
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--hm-dim);
+  max-width: 34ch;
+}
+
+.hm-stop-weeks {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+  font-family: var(--font-heading);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--goal);
+}
+
+/* Wide: the stops run across the plate and the thread turns with them. The
+   columns are gapless and each stop pads itself instead, so a stop's centre
+   lands exactly on (i + 0.5) / stops — which is what lets the thread start
+   and end on the first and last disc rather than near them. */
+@media (min-width: 900px) {
+  .hm-map {
+    grid-template-columns: repeat(var(--stops, 4), minmax(0, 1fr));
+    gap: 0;
+  }
+
+  .hm-map::before {
+    left: calc(50% / var(--stops, 4));
+    right: calc(50% / var(--stops, 4));
+    top: 1.35rem;
+    bottom: auto;
+    width: auto;
+    height: 2px;
+  }
+
+  .hm-stop {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0 0.9rem;
+    text-align: center;
+  }
+
+  .hm-stop-body {
+    padding-top: 0;
+    justify-items: center;
+  }
+
+  .hm-stop-blurb {
+    max-width: 26ch;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   GRID — indexed cells (tracks)
+══════════════════════════════════════════════════════════════ */
+/* Three across, then two, then one — by breakpoint, not auto-fit. Both grids
+   that use this hold six cells, and auto-fit resolved to four on a wide plate:
+   two cells stranded in a row of their own, with two empty ruled boxes beside
+   them. Six divides by three and by two, so this ladder cannot orphan. */
+.hm-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  margin-inline: calc(var(--hm-cell-bleed) * -1);
+  border-top: 1px solid var(--hm-hair);
+  border-left: 1px solid var(--hm-hair);
+}
+
+@media (min-width: 640px) {
+  .hm-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1000px) {
+  .hm-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.hm-cell {
+  position: relative;
+  padding: 1.75rem var(--hm-cell-pad);
+  border-right: 1px solid var(--hm-hair);
+  border-bottom: 1px solid var(--hm-hair);
+  transition: background 0.2s ease;
+}
+
+.hm-cell:hover {
+  background: var(--hm-accent-soft);
+}
+
+.hm-cell-index {
+  font-family: var(--font-heading);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--hm-dim);
+}
+
+.hm-cell-icon {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  margin: 0.9rem 0 1rem;
+  border-radius: 10px;
+  font-size: 1.05rem;
+  background: var(--cell-accent-soft, var(--hm-accent-soft));
+  color: var(--cell-accent, var(--hm-accent));
+}
+
+.hm-cell h3 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--hm-ink);
+}
+
+.hm-cell-level {
+  display: block;
+  margin: 0.3rem 0 0.7rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cell-accent, var(--hm-accent));
+}
+
+.hm-cell p {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+/* What a track actually covers, inside the cell. Ticks rather than bullets,
+   because each line is a thing the student will be able to do. */
+.hm-cell-points {
+  list-style: none;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.42rem;
+}
+
+.hm-cell-points li {
+  display: grid;
+  grid-template-columns: 0.95rem minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: baseline;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.hm-cell-points i {
+  font-size: 0.68rem;
+  color: var(--cell-accent, var(--hm-accent));
+}
+
+/* ══════════════════════════════════════════════════════════════
+   NOTE — one statement given a plate of its own
+══════════════════════════════════════════════════════════════ */
+.hm-note {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  padding: clamp(1.6rem, 4vw, 2.75rem);
+  border: 1px solid var(--hm-hair-strong);
+  border-radius: var(--radius-lg);
+  background: var(--hm-plate);
+}
+
+@media (min-width: 780px) {
+  .hm-note {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 2rem;
+    align-items: start;
+  }
+}
+
+.hm-note-icon {
+  display: grid;
+  place-items: center;
+  width: 4rem;
+  height: 4rem;
+  border-radius: var(--radius-lg);
+  background: var(--hm-accent-soft);
+  color: var(--hm-accent);
+  font-size: 1.6rem;
+}
+
+.hm-note-body {
+  display: grid;
+  justify-items: start;
+  gap: 0.85rem;
+}
+
+.hm-note-title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  font-weight: 900;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--hm-ink);
+  text-wrap: balance;
+}
+
+.hm-note-text {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+.hm-note-tags {
+  list-style: none;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.hm-note-tags li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--hm-hair-strong);
+  border-radius: var(--radius-sm);
+  background: var(--hm-accent-soft);
+  font-family: var(--font-heading);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hm-accent);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FIGURES — a row of counted things
+══════════════════════════════════════════════════════════════ */
+.hm-figures {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (min-width: 780px) {
+  .hm-figures {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.hm-figure {
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+  padding: 1.75rem 1rem;
+  border: 1px solid var(--hm-hair-strong);
+  border-radius: var(--radius-lg);
+  background: var(--hm-plate);
+  text-align: center;
+}
+
+.hm-figure i {
+  font-size: 1.05rem;
+  color: var(--hm-accent);
+}
+
+.hm-figure-value {
+  font-family: var(--font-heading);
+  font-size: clamp(2rem, 4vw, 2.6rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--hm-ink);
+}
+
+.hm-figure-label {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hm-dim);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CELLS — ruled list (why)
+══════════════════════════════════════════════════════════════ */
+/* Six reasons, in cards.
+
+   The column count is set by breakpoint rather than by auto-fit. auto-fit put
+   four across on a wide plate, which left the last two stranded in a row of
+   their own with two columns of empty page beside them — and, because the
+   rows were separated by rules, two hairlines hanging under nothing. Six
+   divides by three and by two, so 3 / 2 / 1 is the whole ladder and no
+   breakpoint can produce an orphan. */
+.hm-rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+@media (min-width: 620px) {
+  .hm-rows {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1000px) {
+  .hm-rows {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Four does not divide by three, so a set of four takes its own ladder:
+   2 / 2 / 1, opening to a single row of four only where there is width for
+   four cards to still read. Same reasoning as the rule above — the count of
+   items decides the count of columns, never the space that happens to fit. */
+@media (min-width: 1000px) {
+  .hm-rows.is-quad {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1240px) {
+  .hm-rows.is-quad {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.hm-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1.6rem 1.6rem 1.7rem;
+  border: 1px solid var(--hm-hair-strong);
+  border-radius: var(--radius-lg);
+  background: var(--hm-plate);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.hm-row:hover {
+  transform: translateY(-2px);
+  border-color: var(--hm-accent);
+}
+
+.hm-row-icon {
+  display: grid;
+  place-items: center;
+  width: 2.9rem;
+  height: 2.9rem;
+  margin-bottom: 0.35rem;
+  border-radius: var(--radius-md);
+  background: var(--hm-accent-soft);
+  color: var(--hm-accent);
+  font-size: 1.15rem;
+}
+
+.hm-row h3 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: var(--hm-ink);
+}
+
+.hm-row p {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-row:hover,
+  .hm-goal:hover {
+    transform: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CLOSING PLATE
+══════════════════════════════════════════════════════════════ */
+.hm-close {
+  position: relative;
+  text-align: center;
+  border-top: 1px solid var(--hm-hair);
+  overflow: hidden;
+}
+
+/* A single brand-blue bloom behind the closing statement — the same light
+   source as the hero aurora, so the page ends where it began. */
+.hm-close-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(46% 62% at 50% 46%, var(--hm-accent-soft) 0%, transparent 70%);
+}
+
+.hm-close > *:not(.hm-close-bg) {
+  position: relative;
+  z-index: 1;
+}
+
+.hm-close .hm-title {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 18ch;
+}
+
+.hm-close .hm-sub {
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
+.hm-close-actions {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ENTRANCES
+
+   The page-wide observer in useScrollReveal adds .reveal-visible to each
+   plate as it arrives. The plate fades itself in; these rules carry that
+   through to the repeated children so a grid assembles rather than
+   appearing all at once. Delays are capped at six — past that the last
+   cell waits long enough to look broken.
+══════════════════════════════════════════════════════════════ */
+.hm-plate.reveal .hm-cell,
+.hm-plate.reveal .hm-row,
+.hm-plate.reveal .hm-stop {
+  opacity: 0;
+}
+
+.hm-plate.reveal-visible .hm-cell,
+.hm-plate.reveal-visible .hm-row,
+/* The marquee is deliberately absent from this list: `animation` is a
+   shorthand, so a rise here would replace the scroll animation outright and
+   the strip would sit still. The strip fades in as a whole instead. */
+.hm-plate.reveal-visible .hm-stop {
+  animation: hm-rise 0.62s cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+.hm-plate.reveal-visible .hm-cell:nth-child(1),
+.hm-plate.reveal-visible .hm-row:nth-child(1),
+.hm-plate.reveal-visible .hm-stop:nth-child(1) { animation-delay: 0.04s; }
+.hm-plate.reveal-visible .hm-cell:nth-child(2),
+.hm-plate.reveal-visible .hm-row:nth-child(2),
+.hm-plate.reveal-visible .hm-stop:nth-child(2) { animation-delay: 0.11s; }
+.hm-plate.reveal-visible .hm-cell:nth-child(3),
+.hm-plate.reveal-visible .hm-row:nth-child(3),
+.hm-plate.reveal-visible .hm-stop:nth-child(3) { animation-delay: 0.18s; }
+.hm-plate.reveal-visible .hm-cell:nth-child(4),
+.hm-plate.reveal-visible .hm-stop:nth-child(4),
+.hm-plate.reveal-visible .hm-row:nth-child(4) { animation-delay: 0.25s; }
+.hm-plate.reveal-visible .hm-cell:nth-child(5),
+.hm-plate.reveal-visible .hm-row:nth-child(5) { animation-delay: 0.32s; }
+.hm-plate.reveal-visible .hm-cell:nth-child(6),
+.hm-plate.reveal-visible .hm-row:nth-child(6) { animation-delay: 0.39s; }
+
+/* The heading block leads, ahead of whatever it introduces. */
+.hm-plate.reveal-visible .hm-head > * {
+  animation: hm-rise 0.6s cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+.hm-plate.reveal-visible .hm-head > *:nth-child(2) { animation-delay: 0.06s; }
+.hm-plate.reveal-visible .hm-head > *:nth-child(3) { animation-delay: 0.12s; }
+
+@keyframes hm-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-plate.reveal .hm-cell,
+  .hm-plate.reveal .hm-row,
+  .hm-plate.reveal .hm-stop {
+    opacity: 1;
+  }
+
+  .hm-plate.reveal-visible .hm-cell,
+  .hm-plate.reveal-visible .hm-row,
+  .hm-plate.reveal-visible .hm-stop,
+  .hm-plate.reveal-visible .hm-head > * {
+    animation: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ENTRANCES, PART TWO — THE SECTIONS THAT HAD NONE
+
+   The block above carries the reveal through to grids, rows and map stops.
+   Everything else arrived as one flat fade, which is why a page built mostly
+   from those other pieces — the about page — read as though nothing moved.
+
+   Each family below gets its own character rather than one shared slide, so
+   the sections do not all enter the same way six times running: the map draws
+   its own line, the figures pop, the note assembles around its icon and the
+   closing plate blooms before its buttons land.
+══════════════════════════════════════════════════════════════ */
+
+/* ── The map draws its own rail ──────────────────────────────
+   The connector is a pseudo-element, so it cannot be staggered with the
+   stops; it is scaled from its top edge instead, which reads as the line
+   being drawn downward just ahead of the stops arriving on it. */
+.hm-plate.reveal .hm-map::before {
+  transform: scaleY(0);
+  transform-origin: top center;
+}
+
+.hm-plate.reveal-visible .hm-map::before {
+  animation: hm-draw 0.85s cubic-bezier(0.215, 0.61, 0.355, 1) 0.04s both;
+}
+
+@keyframes hm-draw {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+/* ── Figures pop rather than rise ────────────────────────────
+   A counted number wants to land, not drift up: the scale is what makes it
+   read as arriving. Four cards, four delays. */
+.hm-plate.reveal .hm-figure {
+  opacity: 0;
+}
+
+.hm-plate.reveal-visible .hm-figure {
+  animation: hm-pop 0.58s cubic-bezier(0.34, 1.36, 0.64, 1) both;
+}
+
+.hm-plate.reveal-visible .hm-figure:nth-child(1) { animation-delay: 0.05s; }
+.hm-plate.reveal-visible .hm-figure:nth-child(2) { animation-delay: 0.13s; }
+.hm-plate.reveal-visible .hm-figure:nth-child(3) { animation-delay: 0.21s; }
+.hm-plate.reveal-visible .hm-figure:nth-child(4) { animation-delay: 0.29s; }
+
+@keyframes hm-pop {
+  from { opacity: 0; transform: translateY(14px) scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ── The note assembles around its icon ──────────────────────
+   The icon is the anchor, so it lands first and the body follows it in;
+   the tags come last, in their own order, because they are a summary of what
+   was just said rather than part of saying it. */
+.hm-plate.reveal .hm-note-icon,
+.hm-plate.reveal .hm-note-body > *,
+.hm-plate.reveal .hm-note-tags li {
+  opacity: 0;
+}
+
+.hm-plate.reveal-visible .hm-note-icon {
+  animation: hm-pop 0.6s cubic-bezier(0.34, 1.36, 0.64, 1) both;
+}
+
+.hm-plate.reveal-visible .hm-note-body > * {
+  animation: hm-rise 0.6s cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+.hm-plate.reveal-visible .hm-note-body > *:nth-child(1) { animation-delay: 0.08s; }
+.hm-plate.reveal-visible .hm-note-body > *:nth-child(2) { animation-delay: 0.15s; }
+.hm-plate.reveal-visible .hm-note-body > *:nth-child(3) { animation-delay: 0.22s; }
+.hm-plate.reveal-visible .hm-note-body > *:nth-child(4) { animation-delay: 0.29s; }
+
+.hm-plate.reveal-visible .hm-note-tags li {
+  animation: hm-rise 0.5s cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+.hm-plate.reveal-visible .hm-note-tags li:nth-child(1) { animation-delay: 0.34s; }
+.hm-plate.reveal-visible .hm-note-tags li:nth-child(2) { animation-delay: 0.40s; }
+.hm-plate.reveal-visible .hm-note-tags li:nth-child(3) { animation-delay: 0.46s; }
+.hm-plate.reveal-visible .hm-note-tags li:nth-child(4) { animation-delay: 0.52s; }
+
+/* ── The closing plate blooms, then hands over its buttons ───
+   The wash behind the type is the only thing on the page that is pure
+   atmosphere, so it is the only thing that gets to grow into place. */
+.hm-close.reveal .hm-close-bg {
+  opacity: 0;
+}
+
+.hm-close.reveal-visible .hm-close-bg {
+  animation: hm-bloom 1.1s cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+@keyframes hm-bloom {
+  from { opacity: 0; transform: scale(0.82); }
+  to { opacity: 1; transform: none; }
+}
+
+.hm-close.reveal .hm-tick,
+.hm-close.reveal .hm-title,
+.hm-close.reveal .hm-sub,
+.hm-close.reveal .hm-close-actions > * {
+  opacity: 0;
+}
+
+.hm-close.reveal-visible .hm-tick,
+.hm-close.reveal-visible .hm-title,
+.hm-close.reveal-visible .hm-sub {
+  animation: hm-rise 0.62s cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+.hm-close.reveal-visible .hm-title { animation-delay: 0.08s; }
+.hm-close.reveal-visible .hm-sub { animation-delay: 0.16s; }
+
+.hm-close.reveal-visible .hm-close-actions > * {
+  animation: hm-pop 0.55s cubic-bezier(0.34, 1.36, 0.64, 1) both;
+}
+
+.hm-close.reveal-visible .hm-close-actions > *:nth-child(1) { animation-delay: 0.26s; }
+.hm-close.reveal-visible .hm-close-actions > *:nth-child(2) { animation-delay: 0.34s; }
+
+/* ── The about opening, on load ──────────────────────────────
+   The hero is the first screen, so there is no scroll to trigger it and no
+   observer watching: it plays once as the page paints. Same rise as the
+   sections below, so the page has one vocabulary rather than two. */
+.ab-hero-inner > * {
+  animation: hm-rise 0.7s cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+.ab-hero-inner > *:nth-child(1) { animation-delay: 0.08s; }
+.ab-hero-inner > *:nth-child(2) { animation-delay: 0.18s; }
+.ab-hero-inner > *:nth-child(3) { animation-delay: 0.30s; }
+.ab-hero-inner > *:nth-child(4) { animation-delay: 0.42s; }
+.ab-hero-inner > *:nth-child(5) { animation-delay: 0.54s; }
+
+/* The rail's own items follow the rail in, once it is there. */
+.ab-rail li {
+  animation: hm-rise 0.5s cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+.ab-rail li:nth-child(1) { animation-delay: 0.62s; }
+.ab-rail li:nth-child(2) { animation-delay: 0.69s; }
+.ab-rail li:nth-child(3) { animation-delay: 0.76s; }
+.ab-rail li:nth-child(4) { animation-delay: 0.83s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-plate.reveal .hm-map::before {
+    transform: none;
+  }
+
+  .hm-plate.reveal .hm-figure,
+  .hm-plate.reveal .hm-note-icon,
+  .hm-plate.reveal .hm-note-body > *,
+  .hm-plate.reveal .hm-note-tags li,
+  .hm-close.reveal .hm-close-bg,
+  .hm-close.reveal .hm-tick,
+  .hm-close.reveal .hm-title,
+  .hm-close.reveal .hm-sub,
+  .hm-close.reveal .hm-close-actions > * {
+    opacity: 1;
+  }
+
+  .hm-plate.reveal-visible .hm-map::before,
+  .hm-plate.reveal-visible .hm-figure,
+  .hm-plate.reveal-visible .hm-note-icon,
+  .hm-plate.reveal-visible .hm-note-body > *,
+  .hm-plate.reveal-visible .hm-note-tags li,
+  .hm-close.reveal-visible .hm-close-bg,
+  .hm-close.reveal-visible .hm-tick,
+  .hm-close.reveal-visible .hm-title,
+  .hm-close.reveal-visible .hm-sub,
+  .hm-close.reveal-visible .hm-close-actions > *,
+  .ab-hero-inner > *,
+  .ab-rail li {
+    animation: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ABOUT OPENING
+
+   Third opening, third device. The home page opens on a lit slab of its own
+   colour with a point field drifting over it; the contact page opens on the
+   form itself. This one is a stage — the type is centred, nothing sits beside
+   it, and the ground it stands on is a field of concentric rings with a light
+   sweeping slowly around them.
+
+   The rings hold still and the sweep does the moving, which is what keeps the
+   loop seamless: a conic gradient repeats at 360deg, so one full turn lands
+   exactly where it started. Rings drawn as a repeating radial gradient have no
+   equivalent — scaling them changes their spacing rather than sliding them —
+   so they only breathe, on an alternating loop that ends where it began.
+══════════════════════════════════════════════════════════════ */
+.ab-hero {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  /* Full screen, the way the other two openings are. min-height so the stage
+     grows rather than crops when the type stacks. */
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  padding: clamp(8.5rem, 13vw, 11rem) var(--hm-pad) clamp(3.5rem, 7vw, 5.5rem);
+  overflow: hidden;
+  border-bottom: 1px solid var(--hm-hair);
+  background-color: var(--ab-paper);
+  background-image: linear-gradient(180deg, var(--ab-lift) 0%, transparent 62%);
+
+  --ab-paper: #e9eff9;
+  --ab-lift: rgba(255, 255, 255, 0.9);
+  --ab-ring: rgba(37, 99, 235, 0.15);
+  --ab-sheen: rgba(37, 99, 235, 0.2);
+}
+
+[data-theme='dark'] .ab-hero {
+  --ab-paper: #060b16;
+  --ab-lift: rgba(96, 165, 250, 0.07);
+  --ab-ring: rgba(125, 173, 255, 0.14);
+  --ab-sheen: rgba(96, 165, 250, 0.22);
+}
+
+/* The ring field, masked so it fades out before it reaches an edge — rings
+   cut off by a hard border read as a mistake rather than as depth. */
+.ab-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: repeating-radial-gradient(
+    circle at 50% 42%,
+    var(--ab-ring) 0 1px,
+    transparent 1px 72px
+  );
+  -webkit-mask-image: radial-gradient(72% 80% at 50% 42%, #000 22%, transparent 76%);
+  mask-image: radial-gradient(72% 80% at 50% 42%, #000 22%, transparent 76%);
+  will-change: transform;
+  animation: ab-rings 18s ease-in-out infinite alternate;
+}
+
+@keyframes ab-rings {
+  from { transform: scale(1); }
+  to { transform: scale(1.045); }
+}
+
+/* The sweep. It is centred with `translate` and turned with `rotate`, which
+   are separate properties, so the animation can spin it without having to
+   restate the centring on every frame. */
+.ab-hero::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 42%;
+  left: 50%;
+  width: 150%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  pointer-events: none;
+  background-image: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    var(--ab-sheen) 45deg,
+    transparent 130deg,
+    transparent 200deg,
+    var(--ab-sheen) 260deg,
+    transparent 340deg
+  );
+  filter: blur(70px);
+  will-change: rotate;
+  animation: ab-sweep 30s linear infinite;
+}
+
+@keyframes ab-sweep {
+  to { rotate: 360deg; }
+}
+
+.ab-hero-inner {
+  position: relative;
+  width: 100%;
+  max-width: 62rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.ab-hero-title {
+  font-family: var(--font-heading);
+  font-size: clamp(2.5rem, 6.2vw, 4.75rem);
+  font-weight: 900;
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  color: var(--hm-ink);
+  max-width: 18ch;
+  margin: 1.5rem 0 0;
+}
+
+.ab-hero-title em {
+  font-style: normal;
+  color: var(--hm-accent);
+}
+
+.ab-hero-lead {
+  max-width: 56ch;
+  margin: 1.5rem 0 0;
+  font-size: 1.08rem;
+  line-height: 1.75;
+  color: var(--hm-dim);
+}
+
+.ab-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.9rem;
+  margin-top: 2.4rem;
+}
+
+.ab-hero-actions .nb-btn i {
+  margin-right: 0.35rem;
+}
+
+/* Four qualifiers on a hairline. Not a second set of figures — the page
+   already carries those further down — but the four things asked before
+   anyone reads a word of the body. */
+.ab-rail {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem 2.25rem;
+  width: 100%;
+  max-width: 54rem;
+  margin: clamp(2.75rem, 5vw, 4rem) 0 0;
+  padding: clamp(1.5rem, 3vw, 2.25rem) 0 0;
+  border-top: 1px solid var(--hm-hair);
+  list-style: none;
+}
+
+.ab-rail li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--hm-dim);
+}
+
+.ab-rail i {
+  font-size: 0.9rem;
+  color: var(--hm-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ab-hero::before,
+  .ab-hero::after {
+    animation: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CONTACT
+
+   The third opening. The home page opens on a lit slab that owns the first
+   screen, the about page on a masthead with a deck of cards beside it; this
+   one opens on the form itself, because nobody arrives at a contact page to
+   read. The copy is there to say who picks the message up and how long they
+   take — everything else is the thing you came to do.
+══════════════════════════════════════════════════════════════ */
+/* The opening holds the screen: the form is the page, so nothing else should
+   compete with it above the fold. min-height rather than height, so a short
+   window or a long form grows the section instead of spilling out of it, and
+   svh so mobile browser chrome cannot push the bottom out of view. */
+.ct-hero {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  padding: 8.75rem 0 clamp(3rem, 6vw, 4.5rem);
+  overflow: hidden;
+  border-bottom: 1px solid var(--hm-hair);
+  background-color: var(--ct-paper);
+
+  --ct-paper: #eef2fa;
+  --ct-wash: rgba(37, 99, 235, 0.12);
+}
+
+[data-theme='dark'] .ct-hero {
+  --ct-paper: #070c17;
+  --ct-wash: rgba(96, 165, 250, 0.14);
+}
+
+/* A dot matrix that fades out before it reaches the form, drifting one cell
+   sideways on a long loop — one tile, so the loop has no seam. */
+.ct-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle at center, var(--hm-hair-strong) 1px, transparent 1.5px);
+  background-size: 22px 22px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 72%);
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 72%);
+  will-change: background-position;
+  animation: ct-matrix 9s linear infinite;
+}
+
+@keyframes ct-matrix {
+  from { background-position: 0 0; }
+  to { background-position: 22px 0; }
+}
+
+.ct-hero::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  inset: -30%;
+  background-image: radial-gradient(36% 42% at 30% 40%, var(--ct-wash) 0%, transparent 70%);
+  filter: blur(44px);
+}
+
+/* The hero carries no padding of its own and the inner column takes the same
+   --hm-max as every plate below it, so the copy starts on the line the rest of
+   the page starts on. Padding the section *and* taking 90% of what was left
+   inset the column twice, and the hero read as a narrower page than its own
+   body. */
+.ct-hero-inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: var(--hm-max);
+  margin: 0 auto;
+  display: grid;
+  gap: clamp(2.25rem, 4vw, 3.5rem);
+  align-items: start;
+}
+
+/* The form takes the wider half: it is the page. */
+@media (min-width: 900px) {
+  .ct-hero-inner {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  }
+}
+
+.ct-title {
+  font-family: var(--font-heading);
+  font-size: clamp(2.1rem, 4vw, 3.1rem);
+  font-weight: 900;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: var(--hm-ink);
+  margin: 1.3rem 0 0;
+}
+
+.ct-title em {
+  font-style: normal;
+  color: var(--hm-accent);
+}
+
+.ct-lead {
+  max-width: 42ch;
+  margin: 1.2rem 0 0;
+  font-size: 1.02rem;
+  line-height: 1.75;
+  color: var(--hm-dim);
+}
+
+/* The three ways to reach a person without filling anything in. */
+.ct-lines {
+  list-style: none;
+  margin: 2rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+}
+
+.ct-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--hm-hair);
+}
+
+.ct-line:last-child {
+  border-bottom: 1px solid var(--hm-hair);
+}
+
+.ct-line > i {
+  flex: none;
+  width: 2.1rem;
+  height: 2.1rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--hm-accent-soft);
+  color: var(--hm-accent);
+  font-size: 0.85rem;
+}
+
+.ct-line-key {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hm-dim);
+}
+
+.ct-line-value {
+  display: block;
+  margin-top: 0.15rem;
+  font-weight: 700;
+  color: var(--hm-ink);
+  overflow-wrap: anywhere;
+}
+
+a.ct-line-value:hover {
+  color: var(--hm-accent);
+}
+
+/* ─── The form ─── */
+.ct-form {
+  background: var(--hm-plate-solid);
+  border: 1px solid var(--hm-hair-strong);
+  border-radius: var(--radius-lg);
+  padding: clamp(1.4rem, 3vw, 2.1rem);
+  box-shadow: 0 24px 50px -34px rgba(15, 23, 42, 0.6);
+}
+
+.ct-form-title {
+  margin: 0.7rem 0 0;
+  font-family: var(--font-heading);
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: var(--hm-ink);
+}
+
+.ct-form-sub {
+  margin: 0.4rem 0 1.5rem;
+  font-size: 0.92rem;
+  color: var(--hm-dim);
+}
+
+.ct-fields {
+  display: grid;
+  gap: 1.1rem;
+}
+
+/* Two fields to a line once there is room for both to stay usable. */
+.ct-pair {
+  display: grid;
+  gap: 1.1rem;
+}
+
+@media (min-width: 520px) {
+  .ct-pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.ct-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.ct-field > label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hm-dim);
+}
+
+.ct-field input,
+.ct-field select,
+.ct-field textarea {
+  width: 100%;
+  padding: 0.8rem 0.9rem;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.ct-field textarea {
+  resize: vertical;
+  min-height: 8rem;
+}
+
+.ct-field input:focus,
+.ct-field select:focus,
+.ct-field textarea:focus {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px var(--hm-accent-soft);
+}
+
+.ct-submit {
+  width: 100%;
+  justify-content: center;
+  margin-top: 0.3rem;
+}
+
+/* Announced when it appears, so a keyboard user who never sees the top of the
+   form still hears that the message went. */
+.ct-sent {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+  padding: 0.85rem 1.1rem;
+  border-radius: var(--radius-md);
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.32);
+  color: var(--success);
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+/* ─── FAQ ───
+   Native disclosure widgets: the open/closed state, the keyboard handling and
+   the semantics all come free, and there is no JavaScript to get out of step
+   with what is on screen. */
+.ct-faq {
+  margin: clamp(2.25rem, 4vw, 3rem) 0 0;
+  border-top: 1px solid var(--hm-hair);
+}
+
+.ct-q {
+  border-bottom: 1px solid var(--hm-hair);
+}
+
+.ct-q > summary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.15rem 0;
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--font-heading);
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--hm-ink);
+}
+
+.ct-q > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ct-q > summary::after {
+  content: '\f067'; /* plus */
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  font-size: 0.72rem;
+  margin-left: auto;
+  flex: none;
+  width: 1.7rem;
+  height: 1.7rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--hm-accent-soft);
+  color: var(--hm-accent);
+  transition: background-color 0.16s ease;
+}
+
+.ct-q[open] > summary::after {
+  content: '\f068'; /* minus */
+  background: var(--hm-accent);
+  color: #fff;
+}
+
+.ct-q > summary:hover {
+  color: var(--hm-accent);
+}
+
+.ct-q > p {
+  margin: 0 0 1.3rem;
+  padding-right: 2.7rem;
+  max-width: 78ch;
+  color: var(--hm-dim);
+  line-height: 1.75;
+}

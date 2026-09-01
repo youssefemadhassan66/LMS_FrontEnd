@@ -1,0 +1,11 @@
+/* The field fills the hero panel and never takes a click — everything in the
+   hero that can be interacted with sits above it. */
+.hero-field {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}

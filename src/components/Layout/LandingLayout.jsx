@@ -13,9 +13,12 @@ const LandingLayout = () => {
   useScrollReveal();
 
   const isActive = (path) => location.pathname === path ? 'active' : '';
-  // Home and About render the deep-space CosmicScene, so the shared chrome
-  // switches to a translucent dark treatment on those routes.
-  const isCosmic = location.pathname === '/' || location.pathname === '/about';
+  // The three public pages share one landing system, so they share its
+  // chrome: a translucent dark navbar and footer rather than the default
+  // panel. Leaving one route out of this list is what made the contact page
+  // look like a different site.
+  const LANDING_ROUTES = ['/', '/about', '/contact'];
+  const isCosmic = LANDING_ROUTES.includes(location.pathname);
 
   return (
     <div className={`landing-wrapper${isCosmic ? ' landing-cosmic' : ''}`}>
