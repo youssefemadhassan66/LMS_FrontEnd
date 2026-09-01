@@ -83,7 +83,7 @@ const Contact = () => {
   };
 
   return (
-    <div className="home-container is-home-page hm ct-page">
+    <div className="home-container is-home-page hm">
 
       {/* ══════════ HERO: THE FORM ══════════ */}
       <section className="ct-hero">
