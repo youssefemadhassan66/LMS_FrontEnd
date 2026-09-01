@@ -930,6 +930,186 @@ body:has(.hm) {
 }
 
 /* ══════════════════════════════════════════════════════════════
+   ENTRANCES, PART TWO — THE SECTIONS THAT HAD NONE
+
+   The block above carries the reveal through to grids, rows and map stops.
+   Everything else arrived as one flat fade, which is why a page built mostly
+   from those other pieces — the about page — read as though nothing moved.
+
+   Each family below gets its own character rather than one shared slide, so
+   the sections do not all enter the same way six times running: the map draws
+   its own line, the figures pop, the note assembles around its icon and the
+   closing plate blooms before its buttons land.
+══════════════════════════════════════════════════════════════ */
+
+/* ── The map draws its own rail ──────────────────────────────
+   The connector is a pseudo-element, so it cannot be staggered with the
+   stops; it is scaled from its top edge instead, which reads as the line
+   being drawn downward just ahead of the stops arriving on it. */
+.hm-plate.reveal .hm-map::before {
+  transform: scaleY(0);
+  transform-origin: top center;
+}
+
+.hm-plate.reveal-visible .hm-map::before {
+  animation: hm-draw 0.85s cubic-bezier(0.215, 0.61, 0.355, 1) 0.04s both;
+}
+
+@keyframes hm-draw {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+/* ── Figures pop rather than rise ────────────────────────────
+   A counted number wants to land, not drift up: the scale is what makes it
+   read as arriving. Four cards, four delays. */
+.hm-plate.reveal .hm-figure {
+  opacity: 0;
+}
+
+.hm-plate.reveal-visible .hm-figure {
+  animation: hm-pop 0.58s cubic-bezier(0.34, 1.36, 0.64, 1) both;
+}
+
+.hm-plate.reveal-visible .hm-figure:nth-child(1) { animation-delay: 0.05s; }
+.hm-plate.reveal-visible .hm-figure:nth-child(2) { animation-delay: 0.13s; }
+.hm-plate.reveal-visible .hm-figure:nth-child(3) { animation-delay: 0.21s; }
+.hm-plate.reveal-visible .hm-figure:nth-child(4) { animation-delay: 0.29s; }
+
+@keyframes hm-pop {
+  from { opacity: 0; transform: translateY(14px) scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ── The note assembles around its icon ──────────────────────
+   The icon is the anchor, so it lands first and the body follows it in;
+   the tags come last, in their own order, because they are a summary of what
+   was just said rather than part of saying it. */
+.hm-plate.reveal .hm-note-icon,
+.hm-plate.reveal .hm-note-body > *,
+.hm-plate.reveal .hm-note-tags li {
+  opacity: 0;
+}
+
+.hm-plate.reveal-visible .hm-note-icon {
+  animation: hm-pop 0.6s cubic-bezier(0.34, 1.36, 0.64, 1) both;
+}
+
+.hm-plate.reveal-visible .hm-note-body > * {
+  animation: hm-rise 0.6s cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+.hm-plate.reveal-visible .hm-note-body > *:nth-child(1) { animation-delay: 0.08s; }
+.hm-plate.reveal-visible .hm-note-body > *:nth-child(2) { animation-delay: 0.15s; }
+.hm-plate.reveal-visible .hm-note-body > *:nth-child(3) { animation-delay: 0.22s; }
+.hm-plate.reveal-visible .hm-note-body > *:nth-child(4) { animation-delay: 0.29s; }
+
+.hm-plate.reveal-visible .hm-note-tags li {
+  animation: hm-rise 0.5s cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+.hm-plate.reveal-visible .hm-note-tags li:nth-child(1) { animation-delay: 0.34s; }
+.hm-plate.reveal-visible .hm-note-tags li:nth-child(2) { animation-delay: 0.40s; }
+.hm-plate.reveal-visible .hm-note-tags li:nth-child(3) { animation-delay: 0.46s; }
+.hm-plate.reveal-visible .hm-note-tags li:nth-child(4) { animation-delay: 0.52s; }
+
+/* ── The closing plate blooms, then hands over its buttons ───
+   The wash behind the type is the only thing on the page that is pure
+   atmosphere, so it is the only thing that gets to grow into place. */
+.hm-close.reveal .hm-close-bg {
+  opacity: 0;
+}
+
+.hm-close.reveal-visible .hm-close-bg {
+  animation: hm-bloom 1.1s cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+@keyframes hm-bloom {
+  from { opacity: 0; transform: scale(0.82); }
+  to { opacity: 1; transform: none; }
+}
+
+.hm-close.reveal .hm-tick,
+.hm-close.reveal .hm-title,
+.hm-close.reveal .hm-sub,
+.hm-close.reveal .hm-close-actions > * {
+  opacity: 0;
+}
+
+.hm-close.reveal-visible .hm-tick,
+.hm-close.reveal-visible .hm-title,
+.hm-close.reveal-visible .hm-sub {
+  animation: hm-rise 0.62s cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+.hm-close.reveal-visible .hm-title { animation-delay: 0.08s; }
+.hm-close.reveal-visible .hm-sub { animation-delay: 0.16s; }
+
+.hm-close.reveal-visible .hm-close-actions > * {
+  animation: hm-pop 0.55s cubic-bezier(0.34, 1.36, 0.64, 1) both;
+}
+
+.hm-close.reveal-visible .hm-close-actions > *:nth-child(1) { animation-delay: 0.26s; }
+.hm-close.reveal-visible .hm-close-actions > *:nth-child(2) { animation-delay: 0.34s; }
+
+/* ── The about opening, on load ──────────────────────────────
+   The hero is the first screen, so there is no scroll to trigger it and no
+   observer watching: it plays once as the page paints. Same rise as the
+   sections below, so the page has one vocabulary rather than two. */
+.ab-hero-inner > * {
+  animation: hm-rise 0.7s cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+.ab-hero-inner > *:nth-child(1) { animation-delay: 0.08s; }
+.ab-hero-inner > *:nth-child(2) { animation-delay: 0.18s; }
+.ab-hero-inner > *:nth-child(3) { animation-delay: 0.30s; }
+.ab-hero-inner > *:nth-child(4) { animation-delay: 0.42s; }
+.ab-hero-inner > *:nth-child(5) { animation-delay: 0.54s; }
+
+/* The rail's own items follow the rail in, once it is there. */
+.ab-rail li {
+  animation: hm-rise 0.5s cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+.ab-rail li:nth-child(1) { animation-delay: 0.62s; }
+.ab-rail li:nth-child(2) { animation-delay: 0.69s; }
+.ab-rail li:nth-child(3) { animation-delay: 0.76s; }
+.ab-rail li:nth-child(4) { animation-delay: 0.83s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-plate.reveal .hm-map::before {
+    transform: none;
+  }
+
+  .hm-plate.reveal .hm-figure,
+  .hm-plate.reveal .hm-note-icon,
+  .hm-plate.reveal .hm-note-body > *,
+  .hm-plate.reveal .hm-note-tags li,
+  .hm-close.reveal .hm-close-bg,
+  .hm-close.reveal .hm-tick,
+  .hm-close.reveal .hm-title,
+  .hm-close.reveal .hm-sub,
+  .hm-close.reveal .hm-close-actions > * {
+    opacity: 1;
+  }
+
+  .hm-plate.reveal-visible .hm-map::before,
+  .hm-plate.reveal-visible .hm-figure,
+  .hm-plate.reveal-visible .hm-note-icon,
+  .hm-plate.reveal-visible .hm-note-body > *,
+  .hm-plate.reveal-visible .hm-note-tags li,
+  .hm-close.reveal-visible .hm-close-bg,
+  .hm-close.reveal-visible .hm-tick,
+  .hm-close.reveal-visible .hm-title,
+  .hm-close.reveal-visible .hm-sub,
+  .hm-close.reveal-visible .hm-close-actions > *,
+  .ab-hero-inner > *,
+  .ab-rail li {
+    animation: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
    ABOUT OPENING
 
    Third opening, third device. The home page opens on a lit slab of its own
