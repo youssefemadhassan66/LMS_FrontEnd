@@ -1119,7 +1119,7 @@ body:has(.hm) {
 .ct-hero {
   position: relative;
   width: 100%;
-  padding: 8.75rem var(--hm-pad) clamp(3rem, 6vw, 4.5rem);
+  padding: 8.75rem 0 clamp(3rem, 6vw, 4.5rem);
   overflow: hidden;
   border-bottom: 1px solid var(--hm-hair);
   background-color: var(--ct-paper);
@@ -1164,6 +1164,11 @@ body:has(.hm) {
   filter: blur(44px);
 }
 
+/* The hero carries no padding of its own and the inner column takes the same
+   --hm-max as every plate below it, so the copy starts on the line the rest of
+   the page starts on. Padding the section *and* taking 90% of what was left
+   inset the column twice, and the hero read as a narrower page than its own
+   body. */
 .ct-hero-inner {
   position: relative;
   z-index: 1;

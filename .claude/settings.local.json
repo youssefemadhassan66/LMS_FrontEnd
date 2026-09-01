@@ -1,7 +1,45 @@
 {
   "permissions": {
     "allow": [
-      "Bash(Get-ChildItem \"f:\\\\Study_OLD\\\\Web-Development-projects\\\\27-LMS\\\\Backend\" -Recurse -Filter \"*SubmissionService*\" -Name)"
+      "Bash(Get-ChildItem \"f:\\\\Study_OLD\\\\Web-Development-projects\\\\27-LMS\\\\Backend\" -Recurse -Filter \"*SubmissionService*\" -Name)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(node shot.mjs \"http://localhost:5173/login\" \"./login-dark.png\" dark)",
+      "Bash(node shot.mjs \"http://localhost:5173/login\" \"./login-light.png\" light)",
+      "Bash(node shot.mjs \"http://localhost:5173/login\" \"./v2-dark.png\" dark)",
+      "Bash(node shot.mjs \"http://localhost:5173/login\" \"./v3-dark.png\" dark)",
+      "Bash(node shot.mjs \"http://localhost:5173/login\" \"./v4-dark.png\" dark)",
+      "Bash(node shot.mjs \"http://localhost:5173/login\" \"./v4-light.png\" light)",
+      "Bash(node shot.mjs \"http://localhost:5173/login\" \"./v5-light.png\" light)",
+      "Bash(CLIP=\"20,10,280,80,4\" node shot.mjs \"http://localhost:5173/login\" \"./logo-dark.png\" dark)",
+      "Bash(CLIP=\"20,10,280,80,4\" node shot.mjs \"http://localhost:5173/login\" \"./logo-dark2.png\" dark)",
+      "Bash(CLIP=\"150,200,780,560,2\" node shot.mjs \"http://localhost:5173/login\" \"./pitch-dark.png\" dark)",
+      "Bash(node shot.mjs \"http://localhost:5173/login\" \"./v6-dark.png\" dark)",
+      "Bash(node shot.mjs \"http://localhost:5173/login\" \"./v6-light.png\" light)",
+      "Bash(CLIP=\"150,220,700,520,2\" node shot.mjs \"http://localhost:5173/login\" \"./list-dark.png\" dark)",
+      "Bash(node shot.mjs \"http://localhost:5173/\" \"./home-before.png\" dark)",
+      "Bash(node shot.mjs \"http://localhost:5173/\" \"./home-dark.png\" dark)",
+      "Bash(npx eslint *)",
+      "Bash(node shot.mjs \"http://localhost:5173/\" \"./home-light.png\" light)",
+      "Bash(node shot.mjs \"http://localhost:5173/login\" \"./final-dark.png\" dark)",
+      "Bash(node shot.mjs \"http://localhost:5173/login\" \"./final-light.png\" light)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/api/v1/health)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/)",
+      "Bash(node shot.mjs \"http://localhost:5173/login\" \"./light2.png\" light)",
+      "Bash(WAIT=900 CLIP=\"150,220,700,300,2\" node shot.mjs \"http://localhost:5173/login\" \"./typing.png\" dark)",
+      "Bash(node shot.mjs \"http://localhost:5173/login\" \"./light3.png\" light)",
+      "Bash(WAIT=1500 node shot.mjs \"http://localhost:5173/\" \"./hero-typing.png\" dark)",
+      "Bash(node shot.mjs \"http://localhost:5173/\" \"./hero-light.png\" light)",
+      "Bash(echo \"LINT_EXIT=$?\")",
+      "Bash(WAIT=800 CLIP=\"480,240,760,220,2\" node shot.mjs \"http://localhost:5173/\" \"./hero-mid.png\" dark)",
+      "Bash(node shot.mjs \"http://localhost:5173/login\" \"./done-light.png\" light)",
+      "Bash(WAIT=800 CLIP=\"480,240,760,220,2\" node shot.mjs \"http://localhost:5173/\" \"./hero-mid2.png\" dark)",
+      "Bash(node shot.mjs \"http://localhost:5173/login\" \"./f-login-light.png\" light)",
+      "Bash(node shot.mjs \"http://localhost:5173/\" \"./f-home-light.png\" light)",
+      "Bash(git fetch *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }
