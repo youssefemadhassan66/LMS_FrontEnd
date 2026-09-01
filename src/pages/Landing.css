@@ -1116,41 +1116,61 @@ body:has(.hm) {
    read. The copy is there to say who picks the message up and how long they
    take — everything else is the thing you came to do.
 ══════════════════════════════════════════════════════════════ */
-.ct-hero {
+/* ─── The page itself ────────────────────────────────────────
+   The landing system turns the app's body dot grid off, because dots plus the
+   system's own hairlines read as noise. Contact takes the dots back and makes
+   them its ground: one field, drifting one cell sideways on a long loop, under
+   the whole page rather than under the opening alone. The plates carry no fill
+   of their own, so it shows through every section.
+
+   One tile of travel, so the loop has no seam. */
+.ct-page {
   position: relative;
-  width: 100%;
-  padding: 8.75rem 0 clamp(3rem, 6vw, 4.5rem);
-  overflow: hidden;
-  border-bottom: 1px solid var(--hm-hair);
+  isolation: isolate;
   background-color: var(--ct-paper);
 
   --ct-paper: #eef2fa;
   --ct-wash: rgba(37, 99, 235, 0.12);
 }
 
-[data-theme='dark'] .ct-hero {
+[data-theme='dark'] .ct-page {
   --ct-paper: #070c17;
   --ct-wash: rgba(96, 165, 250, 0.14);
 }
 
-/* A dot matrix that fades out before it reaches the form, drifting one cell
-   sideways on a long loop — one tile, so the loop has no seam. */
-.ct-hero::before {
+.ct-page::before {
   content: '';
   position: absolute;
   inset: 0;
-  z-index: 0;
+  z-index: -1;
   pointer-events: none;
   background-image: radial-gradient(circle at center, var(--hm-hair-strong) 1px, transparent 1.5px);
   background-size: 22px 22px;
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 72%);
-  mask-image: linear-gradient(to bottom, #000 0%, transparent 72%);
   will-change: background-position;
   animation: ct-matrix 9s linear infinite;
 }
 
 @keyframes ct-matrix {
   from { background-position: 0 0; }
+  to { background-position: 22px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ct-page::before {
+    animation: none;
+  }
+}
+
+/* The dot field is the whole contact page, not a band at the top of it. It is
+   painted once on .ct-page below; the hero adds only its wash and the hairline
+   that separates it from the first plate. */
+.ct-hero {
+  position: relative;
+  width: 100%;
+  padding: 8.75rem 0 clamp(3rem, 6vw, 4.5rem);
+  border-bottom: 1px solid var(--hm-hair);
+}
+
   to { background-position: 22px 0; }
 }
 
