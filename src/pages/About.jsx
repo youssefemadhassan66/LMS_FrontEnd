@@ -17,10 +17,6 @@ import './Landing.css';
  * round it, where the home page is a lit slab with points drifting across it.
  */
 
-// Same count as the home page's strip, and the travel in Landing.css is
-// 100/MARQUEE_COPIES percent — the two have to be changed together.
-const MARQUEE_COPIES = 4;
-
 const SKILLS = [
   {
     fa: 'fa-solid fa-code',
@@ -112,18 +108,6 @@ const FIGURES = [
   { icon: 'fa-solid fa-clock', value: '24/7', label: 'Platform access' },
 ];
 
-const TOOLS = [
-  { icon: 'fa-brands fa-python', label: 'Python' },
-  { icon: 'fa-brands fa-js', label: 'JavaScript' },
-  { icon: 'fa-brands fa-html5', label: 'HTML' },
-  { icon: 'fa-brands fa-css3-alt', label: 'CSS' },
-  { icon: 'fa-brands fa-git-alt', label: 'Git' },
-  { icon: 'fa-solid fa-terminal', label: 'Command Line' },
-  { icon: 'fa-solid fa-code', label: 'VS Code' },
-  { icon: 'fa-solid fa-gamepad', label: 'Pygame' },
-  { icon: 'fa-solid fa-database', label: 'SQL Basics' },
-];
-
 const About = () => (
   <div className="home-container is-home-page hm">
 
@@ -160,24 +144,6 @@ const About = () => (
           <li><i className="fa-solid fa-seedling" aria-hidden="true" /> No experience needed</li>
           <li><i className="fa-solid fa-gift" aria-hidden="true" /> First session free</li>
         </ul>
-      </div>
-    </section>
-
-    {/* ══════════ TOOLS STRIP ══════════ */}
-    <section className="hm-strip reveal fade-in" aria-label="Tools and languages">
-      <span className="hm-strip-cap">What students actually work with</span>
-      <div className="hm-marquee">
-        {Array.from({ length: MARQUEE_COPIES }, (_, copy) => (
-          <ul
-            key={copy}
-            className="hm-marquee-row"
-            aria-hidden={copy > 0 ? 'true' : undefined}
-          >
-            {TOOLS.map(t => (
-              <li key={`${t.label}-${copy}`}><i className={t.icon} /> {t.label}</li>
-            ))}
-          </ul>
-        ))}
       </div>
     </section>
 

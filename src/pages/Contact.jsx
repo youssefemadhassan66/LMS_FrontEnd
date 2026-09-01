@@ -10,6 +10,10 @@ import './Landing.css';
  * is only what you need before you type: who picks the message up, how long
  * they take, and the two ways to skip the form entirely. Everything below is
  * the shared furniture — the row cards, the note block, the closing plate.
+ *
+ * The form has no endpoint behind it: the API exposes no unauthenticated
+ * contact route, so submitting composes the message to the published address
+ * instead of posting it into a void and reporting success.
  */
 
 const CHANNELS = [
@@ -70,6 +74,29 @@ const SUBJECTS = [
   'Something else',
 ];
 
+// There is no public endpoint to post this to — the API has no unauthenticated
+// contact route — so the form hands the message to the address it already
+// advertises rather than pretending to deliver it. Everything typed is carried
+// into a prefilled message, and the fields are left standing: if the mail client
+// never opens, the words are still on screen to copy.
+const CONTACT_EMAIL = 'hello@algogambit.online';
+
+const composeMailto = (form) => {
+  const data = new FormData(form);
+  const value = (name) => (data.get(name) || '').toString().trim();
+  const subject = `${value('subject')} — ${value('name')}`;
+  const body = [
+    `Name: ${value('name')}`,
+    `Email: ${value('email')}`,
+    `Role: ${value('role')}`,
+    `About: ${value('subject')}`,
+    '',
+    value('message'),
+  ].join('\n');
+
+  return `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+};
+
 const Contact = () => {
   const [sent, setSent] = useState(false);
   // One prefix per mounted form, so every label points at its own field even
@@ -78,8 +105,8 @@ const Contact = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    window.location.href = composeMailto(e.target);
     setSent(true);
-    e.target.reset();
   };
 
   return (
@@ -139,8 +166,10 @@ const Contact = () => {
             <div role="status" aria-live="polite">
               {sent && (
                 <p className="ct-sent">
-                  <i className="fa-solid fa-circle-check" aria-hidden="true" />
-                  Thank you — your message is on its way. We will reply within one working day.
+                  <i className="fa-solid fa-envelope-open-text" aria-hidden="true" />
+                  Your mail app should be opening with this message ready to send. If nothing
+                  happened, write to <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> —
+                  everything you typed is still here to copy.
                 </p>
               )}
             </div>

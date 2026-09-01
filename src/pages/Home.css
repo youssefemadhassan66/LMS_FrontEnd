@@ -42,8 +42,11 @@
      rails' width, so the drawing stays on the page's grid even though the
      surface it is drawn on does not. */
   width: 100%;
-  height: min(100vh, 52rem);
-  min-height: 620px;
+  /* The opening holds the screen. min-height rather than height, so a short
+     window grows the band instead of clipping the copy out of it, and svh so
+     mobile browser chrome cannot push the bottom out of view. */
+  min-height: 100vh;
+  min-height: 100svh;
   padding: 8rem 2rem 4.5rem; /* top padding clears the floating navbar */
   overflow: hidden;
   display: flex;
@@ -185,8 +188,6 @@
 
 @media (max-width: 768px) {
   .hero-section-wrapper {
-    height: auto;
-    min-height: 100vh;
     padding: 8rem 1rem 4rem;
   }
 }

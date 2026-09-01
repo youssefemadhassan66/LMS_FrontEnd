@@ -948,6 +948,12 @@ body:has(.hm) {
   position: relative;
   isolation: isolate;
   width: 100%;
+  /* Full screen, the way the other two openings are. min-height so the stage
+     grows rather than crops when the type stacks. */
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
   padding: clamp(8.5rem, 13vw, 11rem) var(--hm-pad) clamp(3.5rem, 7vw, 5.5rem);
   overflow: hidden;
   border-bottom: 1px solid var(--hm-hair);
@@ -1116,9 +1122,17 @@ body:has(.hm) {
    read. The copy is there to say who picks the message up and how long they
    take — everything else is the thing you came to do.
 ══════════════════════════════════════════════════════════════ */
+/* The opening holds the screen: the form is the page, so nothing else should
+   compete with it above the fold. min-height rather than height, so a short
+   window or a long form grows the section instead of spilling out of it, and
+   svh so mobile browser chrome cannot push the bottom out of view. */
 .ct-hero {
   position: relative;
   width: 100%;
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
   padding: 8.75rem 0 clamp(3rem, 6vw, 4.5rem);
   overflow: hidden;
   border-bottom: 1px solid var(--hm-hair);
