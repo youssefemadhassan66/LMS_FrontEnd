@@ -1625,3 +1625,87 @@ a.ct-line-value:hover {
   color: var(--hm-dim);
   line-height: 1.75;
 }
+
+/* ── Opening and closing ─────────────────────────────────────
+   <details> has no in-between state of its own: the browser shows or hides
+   the content and that is the whole of it, which is why the panel snapped.
+
+   ::details-content is the box the browser wraps that content in, and it can
+   be transitioned. Height animates from 0 to auto — the keyword needs
+   interpolate-size, set on .hm below — while content-visibility is switched
+   on a discrete transition so the content stays painted for the length of the
+   collapse instead of vanishing on the first frame.
+
+   Browsers without ::details-content drop these rules whole and keep the
+   behaviour that is there today, which is the snap. Nothing breaks. */
+.hm {
+  interpolate-size: allow-keywords;
+}
+
+.ct-q::details-content {
+  block-size: 0;
+  overflow: hidden;
+  opacity: 0;
+  translate: 0 -0.35rem;
+  transition:
+    block-size 0.4s cubic-bezier(0.215, 0.61, 0.355, 1),
+    opacity 0.3s ease,
+    translate 0.4s cubic-bezier(0.215, 0.61, 0.355, 1),
+    content-visibility 0.4s allow-discrete;
+}
+
+.ct-q[open]::details-content {
+  block-size: auto;
+  opacity: 1;
+  translate: 0 0;
+}
+
+/* The badge turns rather than cutting from one glyph to the other. The glyph
+   itself still swaps in a single frame — `content` cannot be interpolated —
+   but it swaps halfway through a half-turn, so what reads is one control
+   rotating into its other state. */
+.ct-q > summary::after {
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    rotate 0.36s cubic-bezier(0.34, 1.3, 0.64, 1),
+    scale 0.18s ease;
+}
+
+.ct-q[open] > summary::after {
+  rotate: 180deg;
+}
+
+.ct-q > summary:hover::after {
+  scale: 1.09;
+}
+
+.ct-q > summary:active::after {
+  scale: 0.94;
+}
+
+/* The question itself leans in on hover, so the whole row answers the pointer
+   rather than only its colour changing. */
+.ct-q > summary {
+  transition: color 0.18s ease, padding-left 0.24s cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+.ct-q > summary:hover {
+  padding-left: 0.35rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ct-q::details-content,
+  .ct-q > summary,
+  .ct-q > summary::after {
+    transition: none;
+  }
+
+  .ct-q[open] > summary::after {
+    rotate: none;
+  }
+
+  .ct-q > summary:hover {
+    padding-left: 0;
+  }
+}
