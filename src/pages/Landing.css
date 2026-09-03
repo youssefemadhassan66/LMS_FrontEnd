@@ -483,6 +483,10 @@ body:has(.hm) {
    that use this hold six cells, and auto-fit resolved to four on a wide plate:
    two cells stranded in a row of their own, with two empty ruled boxes beside
    them. Six divides by three and by two, so this ladder cannot orphan. */
+/* The slab. One object with its own surface and its own corners, rather than
+   a rectangle ruled onto the page: the grid draws its top and left edge and
+   each cell draws its right and bottom, so the outer border is complete
+   without doubling, and clipping to the radius rounds it cleanly. */
 .hm-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -490,6 +494,9 @@ body:has(.hm) {
   margin-inline: calc(var(--hm-cell-bleed) * -1);
   border-top: 1px solid var(--hm-hair);
   border-left: 1px solid var(--hm-hair);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: var(--hm-plate);
 }
 
 @media (min-width: 640px) {
@@ -509,19 +516,52 @@ body:has(.hm) {
   padding: 1.75rem var(--hm-cell-pad);
   border-right: 1px solid var(--hm-hair);
   border-bottom: 1px solid var(--hm-hair);
-  transition: background 0.2s ease;
+  transition: background-color 0.24s ease;
+}
+
+/* The track's own colour, drawn along the top edge of its cell and grown from
+   the left on hover. Each cell carries --cell-accent from the page, so six
+   cells light six different colours rather than one shared blue. */
+.hm-cell::before {
+  content: '';
+  position: absolute;
+  inset: -1px auto auto -1px;
+  right: -1px;
+  height: 2px;
+  background: var(--cell-accent, var(--hm-accent));
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.34s cubic-bezier(0.215, 0.61, 0.355, 1);
 }
 
 .hm-cell:hover {
-  background: var(--hm-accent-soft);
+  background-color: var(--cell-accent-soft, var(--hm-accent-soft));
 }
 
+.hm-cell:hover::before {
+  transform: scaleX(1);
+}
+
+/* The number is set out of the flow as a ghost in the corner: it numbers the
+   track without taking a line from the copy, and it comes forward in the
+   track's colour when the cell is pointed at. */
 .hm-cell-index {
+  position: absolute;
+  top: 1.15rem;
+  right: 1.2rem;
   font-family: var(--font-heading);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  color: var(--hm-dim);
+  font-size: 1.7rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--hm-ink);
+  opacity: 0.1;
+  transition: opacity 0.24s ease, color 0.24s ease;
+}
+
+.hm-cell:hover .hm-cell-index {
+  opacity: 0.34;
+  color: var(--cell-accent, var(--hm-accent));
 }
 
 .hm-cell-icon {
@@ -529,11 +569,20 @@ body:has(.hm) {
   place-items: center;
   width: 2.4rem;
   height: 2.4rem;
-  margin: 0.9rem 0 1rem;
+  margin: 0 0 1rem;
   border-radius: 10px;
   font-size: 1.05rem;
   background: var(--cell-accent-soft, var(--hm-accent-soft));
   color: var(--cell-accent, var(--hm-accent));
+  box-shadow: 0 0 0 1px transparent;
+  transition:
+    transform 0.28s cubic-bezier(0.34, 1.3, 0.64, 1),
+    box-shadow 0.24s ease;
+}
+
+.hm-cell:hover .hm-cell-icon {
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 1px var(--cell-accent, var(--hm-accent));
 }
 
 .hm-cell h3 {
@@ -545,14 +594,37 @@ body:has(.hm) {
   color: var(--hm-ink);
 }
 
+/* A chip rather than a line of coloured capitals: the level is a label on the
+   track, and a label reads as one when it has an edge around it. */
 .hm-cell-level {
-  display: block;
-  margin: 0.3rem 0 0.7rem;
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  display: inline-flex;
+  align-items: center;
+  margin: 0.5rem 0 0.8rem;
+  padding: 0.22rem 0.6rem;
+  border-radius: 999px;
+  background: var(--cell-accent-soft, var(--hm-accent-soft));
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--cell-accent, var(--hm-accent));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-cell,
+  .hm-cell::before,
+  .hm-cell-index,
+  .hm-cell-icon {
+    transition: none;
+  }
+
+  .hm-cell:hover::before {
+    transform: scaleX(1);
+  }
+
+  .hm-cell:hover .hm-cell-icon {
+    transform: none;
+  }
 }
 
 .hm-cell p {
@@ -1624,4 +1696,88 @@ a.ct-line-value:hover {
   max-width: 78ch;
   color: var(--hm-dim);
   line-height: 1.75;
+}
+
+/* ── Opening and closing ─────────────────────────────────────
+   <details> has no in-between state of its own: the browser shows or hides
+   the content and that is the whole of it, which is why the panel snapped.
+
+   ::details-content is the box the browser wraps that content in, and it can
+   be transitioned. Height animates from 0 to auto — the keyword needs
+   interpolate-size, set on .hm below — while content-visibility is switched
+   on a discrete transition so the content stays painted for the length of the
+   collapse instead of vanishing on the first frame.
+
+   Browsers without ::details-content drop these rules whole and keep the
+   behaviour that is there today, which is the snap. Nothing breaks. */
+.hm {
+  interpolate-size: allow-keywords;
+}
+
+.ct-q::details-content {
+  block-size: 0;
+  overflow: hidden;
+  opacity: 0;
+  translate: 0 -0.35rem;
+  transition:
+    block-size 0.4s cubic-bezier(0.215, 0.61, 0.355, 1),
+    opacity 0.3s ease,
+    translate 0.4s cubic-bezier(0.215, 0.61, 0.355, 1),
+    content-visibility 0.4s allow-discrete;
+}
+
+.ct-q[open]::details-content {
+  block-size: auto;
+  opacity: 1;
+  translate: 0 0;
+}
+
+/* The badge turns rather than cutting from one glyph to the other. The glyph
+   itself still swaps in a single frame — `content` cannot be interpolated —
+   but it swaps halfway through a half-turn, so what reads is one control
+   rotating into its other state. */
+.ct-q > summary::after {
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    rotate 0.36s cubic-bezier(0.34, 1.3, 0.64, 1),
+    scale 0.18s ease;
+}
+
+.ct-q[open] > summary::after {
+  rotate: 180deg;
+}
+
+.ct-q > summary:hover::after {
+  scale: 1.09;
+}
+
+.ct-q > summary:active::after {
+  scale: 0.94;
+}
+
+/* The question itself leans in on hover, so the whole row answers the pointer
+   rather than only its colour changing. */
+.ct-q > summary {
+  transition: color 0.18s ease, padding-left 0.24s cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+.ct-q > summary:hover {
+  padding-left: 0.35rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ct-q::details-content,
+  .ct-q > summary,
+  .ct-q > summary::after {
+    transition: none;
+  }
+
+  .ct-q[open] > summary::after {
+    rotate: none;
+  }
+
+  .ct-q > summary:hover {
+    padding-left: 0;
+  }
 }
