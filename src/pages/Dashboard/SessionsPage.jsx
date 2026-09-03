@@ -353,6 +353,19 @@ const SessionsPage = () => {
         ? (data?.data?.students || [])
         : nextAssignments.map(assignment => assignment.studentProfileId).filter(Boolean);
       setAssignments(nextAssignments);
+
+      // Assignments only ever mention students who already have one, so on
+      // their own they cannot answer "who could this session be for". An admin
+      // books for anybody, so the roster comes from the profiles endpoint
+      // instead — which scopes itself to the caller: every profile for an
+      // admin, only the actively assigned ones for an instructor. The default
+      // page size there is ten, hence the explicit limit.
+      if (role === 'admin') {
+        const profileData = await request('/api/v1/StudentProfile/all?limit=500');
+        const profiles = profileData?.data?.profiles || [];
+        if (Array.isArray(profiles)) list.push(...profiles);
+      }
+
       if (Array.isArray(list) && list.length > 0) {
         setStudentProfiles(prev => {
           const prevMap = new Map(prev.map(item => [item._id, item]));
@@ -582,12 +595,14 @@ const SessionsPage = () => {
     ).values(),
   );
 
-  const availableStudentProfiles = role !== 'admin'
-    ? studentProfiles
-    : studentProfiles.filter(profile => assignments.some(assignment => (
-      assignment.instructorId?._id === formData.instructorId
-      && assignment.studentProfileId?._id === profile._id
-    )));
+  // Who can be booked, by who is asking. An admin books for any student in the
+  // school; an instructor books only for the students assigned to them, which
+  // the endpoints above already enforce — /me/students and the profiles
+  // endpoint both scope themselves to the caller. Filtering an admin's list by
+  // the instructor they picked was the bug: it hid every student who had no
+  // assignment yet, including students who had no assignment at all, and left
+  // no way to book them a first session.
+  const availableStudentProfiles = studentProfiles;
 
   const renderFormFields = (isEdit) => (
     <>
@@ -620,10 +635,7 @@ const SessionsPage = () => {
             className="modal-select"
             required
             value={formData.instructorId}
-            onChange={e => {
-              setFormData({ ...formData, instructorId: e.target.value, studentProfileId: '' });
-              setSelectedStudentIds([]);
-            }}
+            onChange={e => setFormData({ ...formData, instructorId: e.target.value })}
           >
             <option value="">Choose an instructor</option>
             {assignedInstructors.map(instructor => (
@@ -632,7 +644,7 @@ const SessionsPage = () => {
               </option>
             ))}
           </select>
-          <p className="modal-hint">Only students assigned to this instructor will appear.</p>
+          <p className="modal-hint">The instructor who will run this session.</p>
         </div>
       )}
 
