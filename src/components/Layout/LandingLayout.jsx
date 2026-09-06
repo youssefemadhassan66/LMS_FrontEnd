@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import Logo from '../Logo/Logo';
@@ -8,9 +8,35 @@ import './LandingLayout.css';
 const LandingLayout = () => {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
-  
+  // The open flag carries the route it was opened on. Navigating is the whole
+  // point of the menu, so it has to close once a link lands — but doing that
+  // in an effect means setState in the effect body and a cascading render
+  // (react-hooks/set-state-in-effect). Comparing the stored route to the
+  // current one derives the same thing during render: once the path moves on,
+  // the stored flag is stale and the menu reads as closed. This also covers
+  // browser back/forward, which an onClick on each link would miss.
+  const [menu, setMenu] = useState({ open: false, path: location.pathname });
+  const menuOpen = menu.open && menu.path === location.pathname;
+
+  const closeMenu = () => setMenu({ open: false, path: location.pathname });
+  const toggleMenu = () => setMenu({ open: !menuOpen, path: location.pathname });
+
   // Initialize scroll reveal animations for all landing pages
   useScrollReveal();
+
+  // Escape closes it, the way every other dismissable overlay behaves.
+  // setState here is inside a listener, not the effect body, which is exactly
+  // the subscribe-to-an-external-system shape effects are meant for.
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setMenu({ open: false, path: location.pathname });
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [menuOpen, location.pathname]);
 
   const isActive = (path) => location.pathname === path ? 'active' : '';
   // The three public pages share one landing system, so they share its
@@ -41,8 +67,39 @@ const LandingLayout = () => {
           </button>
           <Link to="/login" className="btn-login">Login</Link>
           <Link to="/login" className="btn-signup">Get Started</Link>
+
+          {/* Below 768px the nav links are hidden and below 520px so is the
+              login link, which previously left About, Contact and Login with
+              no route in at all on a phone. This is where they go. */}
+          <button
+            type="button"
+            className="nav-toggle"
+            onClick={toggleMenu}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+            aria-controls="landing-mobile-menu"
+          >
+            <i className={menuOpen ? 'fa-solid fa-xmark' : 'fa-solid fa-bars'} />
+          </button>
         </div>
+
+        {menuOpen && (
+          <div id="landing-mobile-menu" className="nav-mobile-menu">
+            <Link to="/" className={isActive('/')}>Home</Link>
+            <Link to="/about" className={isActive('/about')}>About</Link>
+            <Link to="/contact" className={isActive('/contact')}>Contact</Link>
+            <Link to="/login" className={isActive('/login')}>Login</Link>
+          </div>
+        )}
       </nav>
+
+      {/* Outside the <nav> on purpose. The cosmic navbar sets backdrop-filter,
+          which makes it the containing block for fixed-position descendants,
+          so a backdrop nested inside it covered only the bar itself instead of
+          the page and there was nothing to tap to dismiss. */}
+      {menuOpen && (
+        <div className="nav-mobile-backdrop" onClick={closeMenu} />
+      )}
 
       <main className="landing-main">
         <div key={location.pathname} className="page-animate">

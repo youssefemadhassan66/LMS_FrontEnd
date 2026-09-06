@@ -64,6 +64,10 @@ const Logo = ({ size = 'md', variant = 'full', onClick, style = {} }) => {
 
   const wordmark = (
     <span
+      // Classed so chrome that runs out of horizontal room can drop the word
+      // and keep the mark. The landing navbar does this on phones, where the
+      // wordmark was crowding the nav out past the right edge.
+      className="ag-logo-word"
       style={{
         fontFamily: "'Outfit', sans-serif",
         fontWeight: 800,

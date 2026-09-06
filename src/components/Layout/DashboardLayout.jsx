@@ -9,6 +9,9 @@ import { getAvatarUrl } from '../../utils/avatar';
 import GamificationWidget from '../Gamification/GamificationWidget';
 import useScrollReveal from '../../hooks/useScrollReveal';
 import './DashboardLayout.css';
+// Must load after DashboardLayout.css: it overrides inline styles on the
+// dashboard pages, which no ordinary media query can reach.
+import './DashboardMobile.css';
 
 const navConfig = {
   student: [
