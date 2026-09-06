@@ -1,0 +1,95 @@
+@Library('leroy-jenkins-library') _
+
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+    }
+    parameters {
+        string(
+            name: 'IMAGE_TAG',
+            defaultValue: '',
+            description: 'Docker image tag supplied by orchestrator'
+        )
+    }
+
+    environment {
+        SERVICE_NAME     = 'frontend'
+        IMAGE_NAME       = 'lms-frontend'
+        INFRA_DIR        = '/git-repos/LMS_Infra'
+        WORKDIR         = '/git-repos'
+        REPO_DIR        = '/git-repos/LMS_FrontEnd'
+        TEST_DIR         = '/git-repos/LMS_Test'
+
+    }
+
+    stages {
+
+        stage('Checkout Frontend') {
+            agent { docker {
+                    image 'git-agent:latest'
+                    args '-v git-repos:/git-repos'
+                }
+            }
+            steps {
+                isValidGitDir("${TEST_DIR}")
+            }
+        }
+
+
+        stage('Test'){
+            agent { docker {
+                    image 'node-agent:latest'
+                    args '-v git-repos:/git-repos'
+                }
+            }
+            steps {
+                withCredentials([file(credentialsId: 'frontend-env', variable: 'ENV_FILE')]) {
+                    dir("${TEST_DIR}") {
+
+                        sh """
+                            set -a
+                            . $ENV_FILE
+                            set +a
+
+                            npm ci
+                            npm test
+                        """
+
+                    }
+                }
+                sh """
+                    rm -rf ${REPO_DIR}
+                    mv ${TEST_DIR} ${REPO_DIR}
+                    rm -rf ${TEST_DIR}
+                """
+            }
+        }
+
+        stage('Compose Build and Deploy') {
+            agent { docker {
+                    image 'docker-agent:latest'
+                    args '''-v git-repos:/git-repos
+                            -v /var/run/docker.sock:/var/run/docker.sock
+                        '''
+                }
+            }
+            steps {
+                dir("${INFRA_DIR}") {
+                    script {
+                        sh """
+                            echo "WORKDIR=$WORKDIR"
+                            echo "INFRA_DIR=$INFRA_DIR"
+                        """
+                        composeBuild("${SERVICE_NAME}")
+                        composeDeploy("${SERVICE_NAME}")
+                    }
+                }
+            }
+        }
+    }
+
+}
