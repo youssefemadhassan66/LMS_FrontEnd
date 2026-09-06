@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import useFetchData from '../../hooks/useFetchData';
 import { SkeletonTableRows } from '../../components/Skeleton/Skeleton';
+import useMediaQuery from '../../hooks/useMediaQuery';
 
 const getLogs = (data) => {
   if (Array.isArray(data)) return data;
@@ -9,8 +10,34 @@ const getLogs = (data) => {
   return [];
 };
 
+const cardFieldLabelStyle = {
+  color: 'var(--text-muted)',
+  fontSize: '0.72rem',
+  fontWeight: 700,
+  textTransform: 'uppercase',
+  letterSpacing: '0.03em',
+};
+
+// One label/value pair inside a mobile log card. `breakAll` is for the ids and
+// addresses that have no spaces to wrap at.
+const CardField = ({ label, children, breakAll }) => (
+  <div style={{ display: 'grid', gap: '0.1rem' }}>
+    <span style={cardFieldLabelStyle}>{label}</span>
+    <span
+      style={{
+        fontSize: '0.85rem',
+        color: 'var(--text-secondary)',
+        overflowWrap: breakAll ? 'anywhere' : 'break-word',
+      }}
+    >
+      {children}
+    </span>
+  </div>
+);
+
 const AuditLogsPage = () => {
   const [query, setQuery] = useState('');
+  const isMobile = useMediaQuery('(max-width: 720px)');
   const { data, loading, error } = useFetchData('/api/v1/audit-logs?sort=-createdAt&limit=100');
   const logs = getLogs(data);
 
@@ -36,7 +63,8 @@ const AuditLogsPage = () => {
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search action, actor, model..."
           style={{
-            minWidth: '260px',
+            flex: '1 1 260px',
+            minWidth: 0,
             padding: '0.65rem 0.85rem',
             border: '2px solid var(--border-color)',
             borderRadius: 'var(--radius-sm)',
@@ -55,6 +83,7 @@ const AuditLogsPage = () => {
         </div>
       )}
 
+      {!isMobile && (loading || filteredLogs.length > 0) && (
       <div className="glass-panel" style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
@@ -96,6 +125,83 @@ const AuditLogsPage = () => {
           </tbody>
         </table>
       </div>
+      )}
+
+      {/* Phones: six columns cannot fit, and the pretty-printed meta JSON in
+          the last one stretched every row far past the screen. One card per
+          event instead, with the JSON collapsed behind a disclosure so a row
+          is only as tall as its summary. */}
+      {isMobile && (
+        <div style={{ display: 'grid', gap: '0.75rem' }}>
+          {loading && (
+            <div
+              className="glass-panel"
+              style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600 }}
+            >
+              Loading audit logs...
+            </div>
+          )}
+
+          {!loading && filteredLogs.map((log) => (
+            <div
+              key={log._id}
+              className="glass-panel"
+              style={{ borderRadius: 'var(--radius-md)', padding: '0.9rem 1rem', display: 'grid', gap: '0.6rem' }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  justifyContent: 'space-between',
+                  gap: '0.5rem',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <span className="modal-chip">{log.action}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                  {log.createdAt ? new Date(log.createdAt).toLocaleString() : '-'}
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gap: '0.1rem' }}>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>
+                  {log.actor?.FullName || 'Unknown'}
+                </span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', overflowWrap: 'anywhere' }}>
+                  {log.actor?.Email || log.actorRole || '-'}
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gap: '0.5rem' }}>
+                <CardField label="Target" breakAll>
+                  {log.targetModel || '-'}
+                  {log.targetId ? (
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}> · {log.targetId}</span>
+                  ) : null}
+                </CardField>
+                <CardField label="IP" breakAll>{log.ip || '-'}</CardField>
+              </div>
+
+              {log.meta && (
+                <details>
+                  <summary style={{ ...cardFieldLabelStyle, cursor: 'pointer' }}>Details</summary>
+                  <pre
+                    style={{
+                      margin: '0.4rem 0 0',
+                      whiteSpace: 'pre-wrap',
+                      overflowWrap: 'anywhere',
+                      fontSize: '0.72rem',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    {JSON.stringify(log.meta, null, 2)}
+                  </pre>
+                </details>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
