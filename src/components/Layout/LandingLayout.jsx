@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import Logo from '../Logo/Logo';
@@ -8,9 +8,28 @@ import './LandingLayout.css';
 const LandingLayout = () => {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
-  
+  const [menuOpen, setMenuOpen] = useState(false);
+
   // Initialize scroll reveal animations for all landing pages
   useScrollReveal();
+
+  // Navigating is the point of the menu, so close it once a link lands.
+  // Without this the panel stays over the page the user just asked for.
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
+
+  // Escape closes it, the way every other dismissable overlay behaves.
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [menuOpen]);
 
   const isActive = (path) => location.pathname === path ? 'active' : '';
   // The three public pages share one landing system, so they share its
@@ -41,7 +60,33 @@ const LandingLayout = () => {
           </button>
           <Link to="/login" className="btn-login">Login</Link>
           <Link to="/login" className="btn-signup">Get Started</Link>
+
+          {/* Below 768px the nav links are hidden and below 520px so is the
+              login link, which previously left About, Contact and Login with
+              no route in at all on a phone. This is where they go. */}
+          <button
+            type="button"
+            className="nav-toggle"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+            aria-controls="landing-mobile-menu"
+          >
+            <i className={menuOpen ? 'fa-solid fa-xmark' : 'fa-solid fa-bars'} />
+          </button>
         </div>
+
+        {menuOpen && (
+          <>
+            <div className="nav-mobile-backdrop" onClick={() => setMenuOpen(false)} />
+            <div id="landing-mobile-menu" className="nav-mobile-menu">
+              <Link to="/" className={isActive('/')}>Home</Link>
+              <Link to="/about" className={isActive('/about')}>About</Link>
+              <Link to="/contact" className={isActive('/contact')}>Contact</Link>
+              <Link to="/login" className={isActive('/login')}>Login</Link>
+            </div>
+          </>
+        )}
       </nav>
 
       <main className="landing-main">
