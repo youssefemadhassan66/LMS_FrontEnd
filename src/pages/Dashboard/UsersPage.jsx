@@ -955,8 +955,6 @@ const UsersPage = () => {
                     padding: "0.9rem 1rem",
                     display: "grid",
                     gap: "0.7rem",
-                    // The action menu is positioned against this card.
-                    position: "relative",
                   }}
                 >
                   <div
@@ -1032,64 +1030,6 @@ const UsersPage = () => {
                       >
                         <i className="fa-solid fa-ellipsis-vertical" />
                       </button>
-
-                      {menuOpen && (
-                        <div
-                          role="menu"
-                          style={{
-                            position: "absolute",
-                            top: "3.2rem",
-                            right: "1rem",
-                            zIndex: 20,
-                            minWidth: "11rem",
-                            display: "grid",
-                            gap: "0.15rem",
-                            padding: "0.35rem",
-                            borderRadius: "0.75rem",
-                            border: "1px solid var(--border-color)",
-                            background: "var(--card-bg)",
-                            boxShadow: "0 14px 30px rgba(0,0,0,0.35)",
-                          }}
-                        >
-                          {linkType && (
-                            <button
-                              role="menuitem"
-                              onClick={() => {
-                                setOpenMenuId(null);
-                                openLinkModal(u, linkType);
-                              }}
-                              className="modal-btn"
-                              style={rowMenuItemStyle}
-                            >
-                              <i className="fa-solid fa-link" /> {linkLabel}
-                            </button>
-                          )}
-                          <button
-                            role="menuitem"
-                            onClick={() => {
-                              setOpenMenuId(null);
-                              openEdit(u);
-                            }}
-                            className="modal-btn modal-btn-info"
-                            style={rowMenuItemStyle}
-                          >
-                            <i className="fa-solid fa-pen" /> Edit
-                          </button>
-                          {u.isActive !== false && (
-                            <button
-                              role="menuitem"
-                              onClick={() => {
-                                setOpenMenuId(null);
-                                setDeleteUser(u);
-                              }}
-                              className="modal-btn modal-btn-danger"
-                              style={rowMenuItemStyle}
-                            >
-                              <i className="fa-solid fa-trash" /> Delete
-                            </button>
-                          )}
-                        </div>
-                      )}
                     </div>
                   </div>
 
@@ -1104,6 +1044,57 @@ const UsersPage = () => {
                     {roleBadge(u.role)}
                     {accountStatusBadge(u)}
                   </div>
+
+                  {menuOpen && (
+                    <div
+                      data-user-menu
+                      role="menu"
+                      style={{
+                        display: "grid",
+                        gap: "0.35rem",
+                        paddingTop: "0.7rem",
+                        borderTop: "1px solid var(--border-color)",
+                      }}
+                    >
+                      {linkType && (
+                        <button
+                          role="menuitem"
+                          onClick={() => {
+                            setOpenMenuId(null);
+                            openLinkModal(u, linkType);
+                          }}
+                          className="modal-btn"
+                          style={rowMenuItemStyle}
+                        >
+                          <i className="fa-solid fa-link" /> {linkLabel}
+                        </button>
+                      )}
+                      <button
+                        role="menuitem"
+                        onClick={() => {
+                          setOpenMenuId(null);
+                          openEdit(u);
+                        }}
+                        className="modal-btn modal-btn-info"
+                        style={rowMenuItemStyle}
+                      >
+                        <i className="fa-solid fa-pen" /> Edit
+                      </button>
+                      {u.isActive !== false && (
+                        <button
+                          role="menuitem"
+                          onClick={() => {
+                            setOpenMenuId(null);
+                            setDeleteUser(u);
+                          }}
+                          className="modal-btn modal-btn-danger"
+                          style={rowMenuItemStyle}
+                        >
+                          <i className="fa-solid fa-trash" /> Delete
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

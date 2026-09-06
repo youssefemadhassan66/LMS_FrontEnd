@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSocket } from '../../context/SocketContext';
 import { normalizeAppLink } from '../../utils/appLinks';
 import { notificationIcon } from '../../utils/notificationIcons';
+import useMediaQuery from '../../hooks/useMediaQuery';
 
 const NotificationBell = () => {
   const {
@@ -17,6 +18,16 @@ const NotificationBell = () => {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
   const [now] = useState(() => Date.now());
+  const isMobile = useMediaQuery('(max-width: 720px)');
+  // Where the panel's top edge sits when it is pinned to the viewport.
+  // Measured off the bell each time it opens; the header is sticky, so the
+  // value stays correct while the page scrolls.
+  const [anchorTop, setAnchorTop] = useState(0);
+
+  const toggleOpen = (e) => {
+    setAnchorTop(e.currentTarget.getBoundingClientRect().bottom + 8);
+    setOpen(o => !o);
+  };
 
   const handleClick = (notif) => {
     if (!notif.isRead) markAsRead(notif._id);
@@ -50,7 +61,7 @@ const NotificationBell = () => {
     <div ref={dropdownRef} style={{ position: 'relative' }}>
       {/* Bell Button */}
       <button
-        onClick={() => setOpen(!open)}
+        onClick={toggleOpen}
         style={{
           position: 'relative', background: 'var(--bg-tertiary)', border: '2px solid var(--border-color)',
           borderRadius: 'var(--radius-sm)', width: '40px', height: '40px', display: 'flex',
@@ -77,7 +88,13 @@ const NotificationBell = () => {
       {/* Dropdown */}
       {open && (
         <div style={{
-          position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: '360px',
+          // The bell is not the last item in the header (the theme toggle and
+          // avatar sit to its right), so a fixed-width panel anchored to the
+          // bell's right edge ran off the left of a phone screen. On mobile,
+          // pin it to the viewport instead of to the bell.
+          ...(isMobile
+            ? { position: 'fixed', top: `${anchorTop}px`, left: '0.5rem', right: '0.5rem' }
+            : { position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: '360px' }),
           background: 'var(--card-bg)', border: '3px solid var(--border-color)',
           borderRadius: 'var(--radius-md)', boxShadow: '6px 6px 0px 0px var(--shadow-color)',
           zIndex: 1000, overflow: 'hidden',
@@ -103,7 +120,7 @@ const NotificationBell = () => {
           </div>
 
           {/* List */}
-          <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+          <div style={{ maxHeight: isMobile ? 'min(320px, 45vh)' : '320px', overflowY: 'auto' }}>
             {loading ? (
               <p style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading...</p>
             ) : notifications.length === 0 ? (
