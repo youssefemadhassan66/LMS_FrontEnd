@@ -1,0 +1,134 @@
+/* =====================================================================
+   DASHBOARD — MOBILE ALIGNMENT SAFETY NET
+
+   The dashboard pages lay themselves out with inline `style={{ ... }}`
+   objects rather than classes. Inline styles outrank every stylesheet
+   rule, so an ordinary `@media` block cannot reach them: a page that
+   hardcodes `gridTemplateColumns: '1fr 1fr'` keeps two columns at 320px
+   just as stubbornly as at 1920px, and the row runs off the screen.
+
+   `!important` is the only declaration that outranks an inline style, so
+   the rules below use it deliberately. Everything is scoped under
+   `.dashboard-content` — the wrapper around <Outlet /> in
+   DashboardLayout.jsx — so the marketing pages, which are already
+   responsive, are untouched.
+
+   Attribute selectors match the *rendered* DOM attribute, which React
+   writes in CSS syntax (`grid-template-columns`), not the camelCase used
+   in JSX. Matching on `[style*=...]` is what lets one file cover roughly
+   a thousand inline styles across every role's pages without editing
+   twenty files by hand.
+
+   Applies to all roles: the rules key off layout, never off role.
+
+   The long-term fix is to move these inline styles into classes. Until
+   then this keeps the dashboard usable on a phone.
+   ===================================================================== */
+
+/* ── Tablet portrait and below (≤900px) ───────────────────────────────
+   The sidebar has become a drawer by this point (see DashboardLayout.css),
+   so content spans the full viewport. Two columns still fit here; only
+   guard against overflow. */
+@media (max-width: 900px) {
+  /* Nothing inside the dashboard may make the page scroll sideways. */
+  .dashboard-content {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  /* Media and embeds are the other classic source of horizontal overflow. */
+  .dashboard-content :where(img, video, canvas, svg, iframe) {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+/* ── Small tablet / large phone (≤720px) ──────────────────────────────
+   Below this width an explicit multi-column grid can no longer hold a
+   readable line length, so collapse to a single column. */
+@media (max-width: 720px) {
+  /* Explicit templates only — `repeat(auto-fit, ...)` and
+     `repeat(auto-fill, ...)` already collapse on their own and often
+     still fit several narrow cards, so leave those to do their job. */
+  .dashboard-content [style*="grid-template-columns"]:not([style*="auto-fit"]):not([style*="auto-fill"]) {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* 149 of the 186 inline flex rows omit flexWrap, so they cannot break
+     onto a second line and instead push past the right edge. */
+  .dashboard-content [style*="display: flex"],
+  .dashboard-content [style*="display:flex"] {
+    flex-wrap: wrap !important;
+  }
+
+  /* Tables have no scroll wrapper. Making the table its own scroll
+     container keeps the columns aligned and readable — squashing a table
+     into a phone width is what makes it unreadable. The page stays put;
+     only the table scrolls. */
+  .dashboard-content table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dashboard-content table :where(thead, tbody, tfoot, tr) {
+    /* Restore table semantics inside the now-block-level element, so
+       columns still line up under their headers. */
+    display: table;
+    width: 100%;
+    table-layout: auto;
+  }
+
+  .dashboard-content table :where(th, td) {
+    white-space: nowrap;
+  }
+
+  /* Dialogs and modals are frequently sized for a desktop viewport. */
+  .dashboard-content :where(.modal, .modal-content, .dialog, .nb-modal) {
+    max-width: calc(100vw - 1rem) !important;
+    width: auto !important;
+  }
+}
+
+/* ── Phone (≤600px) ───────────────────────────────────────────────────
+   Nothing fits two columns here. Collapse every grid, including the
+   auto-fit/auto-fill ones — their `minmax()` floors (up to 420px in
+   ChildDetailsPage) exceed the ~360px of usable width and are the direct
+   cause of the sideways scroll. Replacing the whole template removes the
+   floor along with it. */
+@media (max-width: 600px) {
+  .dashboard-content [style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* A flex child asking for more width than the screen has cannot be
+     honoured; let it shrink instead of overflowing. Buttons and icons
+     keep their own min-width because they are not flex containers'
+     direct sizing constraint here — this only relaxes declared floors. */
+  .dashboard-content [style*="min-width: 2"],
+  .dashboard-content [style*="min-width: 3"],
+  .dashboard-content [style*="min-width: 4"],
+  .dashboard-content [style*="min-width:2"],
+  .dashboard-content [style*="min-width:3"],
+  .dashboard-content [style*="min-width:4"] {
+    min-width: 0 !important;
+  }
+
+  /* Form controls inherit a desktop width in several pages. */
+  .dashboard-content :where(input, select, textarea) {
+    max-width: 100%;
+  }
+
+  /* Long unbroken strings — emails, IDs, URLs — are a common overflow
+     source in the user and audit tables. */
+  .dashboard-content :where(td, th, p, span, h1, h2, h3, h4) {
+    overflow-wrap: anywhere;
+  }
+
+  /* ...except table cells, which we deliberately keep on one line and
+     scroll instead (see the ≤720px block). */
+  .dashboard-content table :where(th, td) {
+    overflow-wrap: normal;
+  }
+}
