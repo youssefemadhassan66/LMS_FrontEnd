@@ -3,6 +3,7 @@ import Modal from "../../components/Modal/Modal";
 import Pagination from "../../components/Pagination/Pagination";
 import { useApiRequest } from "../../hooks/useApiRequest";
 import { SkeletonTableRows } from "../../components/Skeleton/Skeleton";
+import useMediaQuery from "../../hooks/useMediaQuery";
 
 const roleBadge = (role) => {
   const colors = {
@@ -109,6 +110,15 @@ const accountStatusBadge = (user) => {
   );
 };
 
+// Menu items in the mobile row menu are full-width and left-aligned, so the
+// menu reads as a list rather than a cluster of pill buttons.
+const rowMenuItemStyle = {
+  width: "100%",
+  justifyContent: "flex-start",
+  padding: "0.55rem 0.7rem",
+  fontSize: "0.85rem",
+};
+
 const UsersPage = () => {
   const { request } = useApiRequest();
 
@@ -129,6 +139,33 @@ const UsersPage = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [deleteUser, setDeleteUser] = useState(null);
+
+  // A five-column table cannot be read on a phone. Below this width the rows
+  // are rendered as cards instead, with the per-row actions collapsed into a
+  // menu — three inline buttons is what made the action column wider than the
+  // screen and forced the whole table to scroll sideways.
+  const isMobile = useMediaQuery("(max-width: 720px)");
+  const [openMenuId, setOpenMenuId] = useState(null);
+
+  // Dismiss the open row menu the way menus are expected to behave. Both
+  // listeners set state from a callback, not from the effect body.
+  useEffect(() => {
+    if (!openMenuId) return undefined;
+
+    const onPointerDown = (event) => {
+      if (!event.target.closest("[data-user-menu]")) setOpenMenuId(null);
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setOpenMenuId(null);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [openMenuId]);
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState(null);
 
@@ -576,7 +613,8 @@ const UsersPage = () => {
         </section>
       )}
 
-      {/* Users Table */}
+      {/* Users Table — desktop only; phones get the card list below. */}
+      {!isMobile && (
       <div
         className="glass-panel"
         style={{ borderRadius: "1rem", overflow: "hidden" }}
@@ -842,6 +880,235 @@ const UsersPage = () => {
           </tbody>
         </table>
       </div>
+      )}
+
+      {/* Users as cards — phones. Every column the table showed is still here,
+          stacked, with the row actions behind a menu so nothing overflows. */}
+      {isMobile && (
+        <div style={{ display: "grid", gap: "0.75rem" }}>
+          {loading && (
+            <div
+              className="glass-panel"
+              style={{
+                borderRadius: "1rem",
+                padding: "2rem",
+                textAlign: "center",
+                color: "var(--text-muted)",
+                fontWeight: 600,
+              }}
+            >
+              Loading users...
+            </div>
+          )}
+
+          {!loading && users.length === 0 && (
+            <div
+              className="glass-panel"
+              style={{
+                borderRadius: "1rem",
+                padding: "2.5rem 1rem",
+                textAlign: "center",
+                color: "var(--text-muted)",
+                fontWeight: 600,
+              }}
+            >
+              <i
+                className="fa-solid fa-folder-open"
+                style={{
+                  fontSize: "2rem",
+                  display: "block",
+                  marginBottom: "0.5rem",
+                  color: "#a1a1aa",
+                }}
+              />
+              No users found.
+            </div>
+          )}
+
+          {!loading &&
+            users.map((u) => {
+              const initials = (u.FullName || "U")
+                .split(" ")
+                .map((n) => n[0])
+                .join("")
+                .toUpperCase()
+                .slice(0, 2);
+              const avatarColor = roleAvatarBg[u.role] || "#10b981";
+              const menuOpen = openMenuId === u._id;
+              const linkType =
+                canManageConnections(u) &&
+                ["parent", "instructor", "student"].includes(u.role)
+                  ? u.role
+                  : null;
+              const linkLabel = {
+                parent: "Link Student",
+                instructor: "Assign Student",
+                student: "Manage Links",
+              }[linkType];
+
+              return (
+                <div
+                  key={u._id}
+                  className="glass-panel"
+                  style={{
+                    borderRadius: "1rem",
+                    padding: "0.9rem 1rem",
+                    display: "grid",
+                    gap: "0.7rem",
+                    // The action menu is positioned against this card.
+                    position: "relative",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "0.75rem",
+                    }}
+                  >
+                    <div
+                      className="modal-profile-avatar"
+                      style={{
+                        width: "40px",
+                        height: "40px",
+                        fontSize: "0.9rem",
+                        borderRadius: "10px",
+                        background: avatarColor,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {initials}
+                    </div>
+
+                    {/* minWidth 0 so a long email wraps instead of forcing the
+                        row wider than the card. */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontWeight: 700,
+                          color: "var(--text-primary)",
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {u.FullName}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.78rem",
+                          color: "var(--text-muted)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        @{u.UserName}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.82rem",
+                          color: "var(--text-secondary)",
+                          fontWeight: 555,
+                          marginTop: "0.3rem",
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {u.Email}
+                      </div>
+                    </div>
+
+                    <div data-user-menu style={{ flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenMenuId(menuOpen ? null : u._id)}
+                        className="modal-btn"
+                        aria-label={`Actions for ${u.FullName}`}
+                        aria-expanded={menuOpen}
+                        style={{
+                          width: "36px",
+                          height: "36px",
+                          padding: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <i className="fa-solid fa-ellipsis-vertical" />
+                      </button>
+
+                      {menuOpen && (
+                        <div
+                          role="menu"
+                          style={{
+                            position: "absolute",
+                            top: "3.2rem",
+                            right: "1rem",
+                            zIndex: 20,
+                            minWidth: "11rem",
+                            display: "grid",
+                            gap: "0.15rem",
+                            padding: "0.35rem",
+                            borderRadius: "0.75rem",
+                            border: "1px solid var(--border-color)",
+                            background: "var(--card-bg)",
+                            boxShadow: "0 14px 30px rgba(0,0,0,0.35)",
+                          }}
+                        >
+                          {linkType && (
+                            <button
+                              role="menuitem"
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                openLinkModal(u, linkType);
+                              }}
+                              className="modal-btn"
+                              style={rowMenuItemStyle}
+                            >
+                              <i className="fa-solid fa-link" /> {linkLabel}
+                            </button>
+                          )}
+                          <button
+                            role="menuitem"
+                            onClick={() => {
+                              setOpenMenuId(null);
+                              openEdit(u);
+                            }}
+                            className="modal-btn modal-btn-info"
+                            style={rowMenuItemStyle}
+                          >
+                            <i className="fa-solid fa-pen" /> Edit
+                          </button>
+                          {u.isActive !== false && (
+                            <button
+                              role="menuitem"
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                setDeleteUser(u);
+                              }}
+                              className="modal-btn modal-btn-danger"
+                              style={rowMenuItemStyle}
+                            >
+                              <i className="fa-solid fa-trash" /> Delete
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "0.4rem",
+                      alignItems: "center",
+                    }}
+                  >
+                    {roleBadge(u.role)}
+                    {accountStatusBadge(u)}
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      )}
 
       {!loading && users.length > 0 && (
         <Pagination
