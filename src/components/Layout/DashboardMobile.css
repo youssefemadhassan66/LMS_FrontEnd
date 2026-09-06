@@ -61,27 +61,63 @@
     flex-wrap: wrap !important;
   }
 
-  /* Tables have no scroll wrapper. Making the table its own scroll
-     container keeps the columns aligned and readable — squashing a table
-     into a phone width is what makes it unreadable. The page stays put;
-     only the table scrolls. */
-  .dashboard-content table {
-    display: block;
-    width: 100%;
-    overflow-x: auto;
+  /* Scroll the element *wrapping* the table, not the table itself.
+     Squashing a table into a phone width is what makes it unreadable, so it
+     has to scroll — but the obvious version of that (table { display: block;
+     overflow-x: auto } plus thead/tbody { display: table }) is wrong: it
+     splits the header and the body into two independent tables whose columns
+     are then sized independently, and they stop lining up. Measured at 375px
+     with the UsersPage markup, the header's first column came out 79px
+     against a 193px body column.
+
+     Keeping the table a real `display: table` preserves one column model for
+     the whole thing; `width: max-content` lets it take the width its content
+     actually needs, and `min-width: 100%` stops a narrow table collapsing
+     away from the panel edge. The pages already wrap their tables in a
+     rounded panel that sets `overflow: hidden`, which is the element that
+     needs to scroll. */
+  .dashboard-content :where(div, section, article):has(> table) {
+    overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
   }
 
-  .dashboard-content table :where(thead, tbody, tfoot, tr) {
-    /* Restore table semantics inside the now-block-level element, so
-       columns still line up under their headers. */
-    display: table;
-    width: 100%;
-    table-layout: auto;
+  .dashboard-content table {
+    width: max-content;
+    min-width: 100%;
   }
 
   .dashboard-content table :where(th, td) {
     white-space: nowrap;
+  }
+
+  /* Buttons inside a table row must not wrap. The row already lives in a
+     horizontal scroller, so wrapping buys no width — it only makes every row
+     a different height and leaves the action column ragged (UsersPage sets
+     flexWrap: 'wrap' inline on an inline-flex container, which is fine at
+     desktop width and falls apart in a ~200px column). Matching
+     `display: inline-flex` as well as `display: flex`, since React renders
+     the value verbatim. */
+  .dashboard-content table [style*="display: flex"],
+  .dashboard-content table [style*="display:flex"],
+  .dashboard-content table [style*="display: inline-flex"],
+  .dashboard-content table [style*="display:inline-flex"] {
+    flex-wrap: nowrap !important;
+  }
+
+  /* Freeze the identifying first column. Scrolling a table sideways is only
+     usable if you can still see which row you are on; without this the name
+     and email scroll away and the remaining columns are anonymous. Needs an
+     opaque background of its own, or the scrolled cells show through. */
+  .dashboard-content table :where(thead, tbody) tr > :first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--card-bg);
+  }
+
+  .dashboard-content table thead tr > :first-child {
+    z-index: 2;
+    background: var(--table-header-bg, var(--card-bg));
   }
 
   /* Dialogs and modals are frequently sized for a desktop viewport. */

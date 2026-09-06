@@ -8,28 +8,35 @@ import './LandingLayout.css';
 const LandingLayout = () => {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
-  const [menuOpen, setMenuOpen] = useState(false);
+  // The open flag carries the route it was opened on. Navigating is the whole
+  // point of the menu, so it has to close once a link lands — but doing that
+  // in an effect means setState in the effect body and a cascading render
+  // (react-hooks/set-state-in-effect). Comparing the stored route to the
+  // current one derives the same thing during render: once the path moves on,
+  // the stored flag is stale and the menu reads as closed. This also covers
+  // browser back/forward, which an onClick on each link would miss.
+  const [menu, setMenu] = useState({ open: false, path: location.pathname });
+  const menuOpen = menu.open && menu.path === location.pathname;
+
+  const closeMenu = () => setMenu({ open: false, path: location.pathname });
+  const toggleMenu = () => setMenu({ open: !menuOpen, path: location.pathname });
 
   // Initialize scroll reveal animations for all landing pages
   useScrollReveal();
 
-  // Navigating is the point of the menu, so close it once a link lands.
-  // Without this the panel stays over the page the user just asked for.
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [location.pathname]);
-
   // Escape closes it, the way every other dismissable overlay behaves.
+  // setState here is inside a listener, not the effect body, which is exactly
+  // the subscribe-to-an-external-system shape effects are meant for.
   useEffect(() => {
     if (!menuOpen) return undefined;
 
     const onKeyDown = (event) => {
-      if (event.key === 'Escape') setMenuOpen(false);
+      if (event.key === 'Escape') setMenu({ open: false, path: location.pathname });
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [menuOpen]);
+  }, [menuOpen, location.pathname]);
 
   const isActive = (path) => location.pathname === path ? 'active' : '';
   // The three public pages share one landing system, so they share its
@@ -67,7 +74,7 @@ const LandingLayout = () => {
           <button
             type="button"
             className="nav-toggle"
-            onClick={() => setMenuOpen((open) => !open)}
+            onClick={toggleMenu}
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={menuOpen}
             aria-controls="landing-mobile-menu"
@@ -91,7 +98,7 @@ const LandingLayout = () => {
           so a backdrop nested inside it covered only the bar itself instead of
           the page and there was nothing to tap to dismiss. */}
       {menuOpen && (
-        <div className="nav-mobile-backdrop" onClick={() => setMenuOpen(false)} />
+        <div className="nav-mobile-backdrop" onClick={closeMenu} />
       )}
 
       <main className="landing-main">
