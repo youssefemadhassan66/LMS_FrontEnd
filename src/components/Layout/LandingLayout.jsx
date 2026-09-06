@@ -77,17 +77,22 @@ const LandingLayout = () => {
         </div>
 
         {menuOpen && (
-          <>
-            <div className="nav-mobile-backdrop" onClick={() => setMenuOpen(false)} />
-            <div id="landing-mobile-menu" className="nav-mobile-menu">
-              <Link to="/" className={isActive('/')}>Home</Link>
-              <Link to="/about" className={isActive('/about')}>About</Link>
-              <Link to="/contact" className={isActive('/contact')}>Contact</Link>
-              <Link to="/login" className={isActive('/login')}>Login</Link>
-            </div>
-          </>
+          <div id="landing-mobile-menu" className="nav-mobile-menu">
+            <Link to="/" className={isActive('/')}>Home</Link>
+            <Link to="/about" className={isActive('/about')}>About</Link>
+            <Link to="/contact" className={isActive('/contact')}>Contact</Link>
+            <Link to="/login" className={isActive('/login')}>Login</Link>
+          </div>
         )}
       </nav>
+
+      {/* Outside the <nav> on purpose. The cosmic navbar sets backdrop-filter,
+          which makes it the containing block for fixed-position descendants,
+          so a backdrop nested inside it covered only the bar itself instead of
+          the page and there was nothing to tap to dismiss. */}
+      {menuOpen && (
+        <div className="nav-mobile-backdrop" onClick={() => setMenuOpen(false)} />
+      )}
 
       <main className="landing-main">
         <div key={location.pathname} className="page-animate">
