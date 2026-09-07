@@ -1,6 +1,9 @@
 /* =====================================================================
-   ERROR PAGES — Premium Design System
+   ERROR PAGES — Neo-Brutalist (matches the design system in src/index.css)
    401 Unauthorized | 403 Forbidden | 404 Not Found
+
+   Tokens only. No gradients, no blur, no soft shadows — the global theme
+   replaced all three with flat fills, hard borders and offset shadows.
    ===================================================================== */
 
 /* ─── Full-screen wrapper ─── */
@@ -11,80 +14,102 @@
   align-items: center;
   justify-content: center;
   padding: 2rem;
-  background: var(--bg-primary);
+  background-color: var(--bg-primary);
+  /* Same dot grid the global body uses, repeated here so the page keeps it
+     even when mounted inside a container that paints its own background. */
+  background-image: radial-gradient(circle, var(--dot-color) 1px, transparent 1px);
+  background-size: 24px 24px;
   position: relative;
   overflow: hidden;
 }
 
-/* ─── Animated background orbs ─── */
+/* ─── Decorative background shapes ─────────────────────────────────────
+   Brutalism has no blurred orbs. These are hard-edged blocks carrying the
+   same border and offset shadow as every card, held at low opacity so they
+   read as wallpaper rather than content. Class names kept for the markup. */
 .error-bg-orb {
   position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.18;
-  animation: error-orb-float 12s ease-in-out infinite;
+  border: var(--border-width) solid var(--border-color);
+  box-shadow: var(--shadow-lg);
+  opacity: 0.14;
+  animation: error-orb-float 14s ease-in-out infinite;
   pointer-events: none;
 }
 
 .error-bg-orb-1 {
-  width: 400px;
-  height: 400px;
+  width: 260px;
+  height: 260px;
   background: var(--brand-primary);
-  top: -120px;
-  right: -80px;
+  border-radius: var(--radius-md);
+  top: -70px;
+  right: -60px;
   animation-delay: 0s;
 }
 
 .error-bg-orb-2 {
-  width: 300px;
-  height: 300px;
+  width: 200px;
+  height: 200px;
   background: var(--info);
-  bottom: -100px;
-  left: -60px;
-  animation-delay: -4s;
+  border-radius: 50%;
+  bottom: -60px;
+  left: -50px;
+  animation-delay: -5s;
 }
 
 .error-bg-orb-3 {
-  width: 200px;
-  height: 200px;
+  width: 130px;
+  height: 130px;
   background: var(--warning);
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  animation-delay: -8s;
+  border-radius: var(--radius-sm);
+  top: 16%;
+  left: 12%;
+  animation-delay: -9s;
 }
 
 @keyframes error-orb-float {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33%      { transform: translate(30px, -20px) scale(1.05); }
-  66%      { transform: translate(-20px, 15px) scale(0.95); }
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  33%      { transform: translate(18px, -14px) rotate(6deg); }
+  66%      { transform: translate(-14px, 10px) rotate(-4deg); }
 }
 
-/* ─── Card ─── */
-.error-page-card {
+/* ─── Card ─────────────────────────────────────────────────────────────
+   Compounded with .glass-panel (which the global theme redefines as the
+   brutalist card) so these overrides win regardless of stylesheet order. */
+.error-page-card.glass-panel {
   position: relative;
   z-index: 1;
   text-align: center;
   max-width: 480px;
   width: 100%;
-  padding: 3.5rem 3rem;
-  border-radius: var(--radius-xl);
+  padding: 3rem 2.5rem;
+  background: var(--card-bg);
+  border: var(--card-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
   opacity: 0;
-  transform: translateY(24px) scale(0.96);
-  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
-              transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateY(20px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+/* The global .glass-panel lifts on hover. A full-page error card is not an
+   interactive surface, so it stays put. */
+.error-page-card.glass-panel:hover {
+  transform: translateY(0);
+  box-shadow: var(--shadow-lg);
 }
 
 .error-page-card.error-page-animate-in {
   opacity: 1;
-  transform: translateY(0) scale(1);
+  transform: translateY(0);
 }
 
-/* ─── Icon Ring ─── */
+/* ─── Icon badge ─── */
 .error-page-icon-ring {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
+  width: 92px;
+  height: 92px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -92,84 +117,60 @@
   position: relative;
 }
 
-.error-page-icon-ring::before {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  padding: 3px;
-  background: currentColor;
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0.25;
-}
-
 .error-page-icon-inner {
   width: 100%;
   height: 100%;
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Color variants */
+/* Colour variants — flat tints, no gradients */
 .error-page-icon--warning {
   color: var(--warning);
-}
-.error-page-icon--warning .error-page-icon-inner {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.08));
+  background: var(--accent-orange);
 }
 
 .error-page-icon--danger {
   color: var(--error);
-}
-.error-page-icon--danger .error-page-icon-inner {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(220, 38, 38, 0.08));
+  background: var(--accent-rose);
 }
 
 .error-page-icon--brand {
   color: var(--brand-primary);
-}
-.error-page-icon--brand .error-page-icon-inner {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.08));
+  background: var(--brand-light);
 }
 
-/* ─── Error Code ─── */
+/* ─── Error code ───────────────────────────────────────────────────────
+   index.css states gradient text is replaced by solid-colour bold, so the
+   number is a flat fill with a hard offset shadow instead of a clip. */
 .error-page-code {
+  font-family: var(--font-heading);
   font-size: 4.5rem;
-  font-weight: 800;
+  font-weight: 900;
   line-height: 1;
   margin: 0 0 0.5rem;
-  letter-spacing: -0.03em;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  letter-spacing: -0.02em;
+  text-shadow: 4px 4px 0 var(--shadow-color);
 }
 
-.error-page-code--warning {
-  background-image: linear-gradient(135deg, var(--warning), #d97706);
-}
+.error-page-code--warning { color: var(--warning); }
+.error-page-code--danger  { color: var(--error); }
+.error-page-code--brand   { color: var(--brand-primary); }
 
-.error-page-code--danger {
-  background-image: linear-gradient(135deg, var(--error), #dc2626);
-}
-
-.error-page-code--brand {
-  background-image: linear-gradient(135deg, var(--brand-primary), var(--info));
-}
-
-/* ─── Title & Description ─── */
+/* ─── Title & description ─── */
 .error-page-title {
-  font-size: 1.5rem;
-  font-weight: 700;
+  font-family: var(--font-heading);
+  font-size: 1.4rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   margin: 0 0 0.75rem;
   color: var(--text-primary);
 }
 
 .error-page-desc {
-  font-size: 1rem;
+  font-size: 0.95rem;
   line-height: 1.7;
   color: var(--text-secondary);
   margin: 0;
@@ -177,15 +178,16 @@
 
 /* ─── Divider ─── */
 .error-page-divider {
-  width: 48px;
-  height: 3px;
-  border-radius: 100px;
-  background: linear-gradient(90deg, var(--brand-primary), var(--info));
+  width: 64px;
+  height: 4px;
+  border-radius: 0;
+  background: var(--border-color);
   margin: 2rem auto;
-  opacity: 0.5;
+  opacity: 1;
 }
 
-/* ─── Action Buttons ─── */
+/* ─── Action buttons ───────────────────────────────────────────────────
+   Same shape and motion contract as the global .nb-btn. */
 .error-page-actions {
   display: flex;
   gap: 0.75rem;
@@ -198,79 +200,90 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  padding: 0.85rem 1.75rem;
-  border-radius: 12px;
-  font-weight: 600;
-  font-size: 0.95rem;
+  padding: 0.75rem 1.4rem;
+  border: var(--card-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   text-decoration: none;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
-  border: none;
-  font-family: inherit;
+  transition:
+    transform 0.1s ease,
+    box-shadow 0.1s ease,
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.error-page-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--shadow-md);
+}
+
+.error-page-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
 }
 
 .error-page-btn--primary {
-  color: white;
+  color: #FFFFFF;
 }
 
-.error-page-btn--warning {
-  background: linear-gradient(135deg, var(--warning), #d97706);
-  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.3);
-}
-
+/* Filled variants — flat colour, white label held on hover so it never
+   disappears into its own fill. */
+.error-page-btn--warning,
 .error-page-btn--warning:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(245, 158, 11, 0.4);
-  color: white;
+  background: var(--warning);
+  color: #FFFFFF;
 }
 
-.error-page-btn--danger-fill {
-  background: linear-gradient(135deg, var(--error), #dc2626);
-  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);
-}
-
+.error-page-btn--danger-fill,
 .error-page-btn--danger-fill:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(239, 68, 68, 0.4);
-  color: white;
+  background: var(--error);
+  color: #FFFFFF;
 }
 
-.error-page-btn--brand-fill {
-  background: linear-gradient(135deg, var(--brand-primary), #059669);
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
-}
-
+.error-page-btn--brand-fill,
 .error-page-btn--brand-fill:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
-  color: white;
+  background: var(--brand-primary);
+  color: #FFFFFF;
 }
 
+/* The outlined variant picks up the brand on rim and label, matching
+   .nb-btn-secondary rather than darkening a fill it does not have. */
 .error-page-btn--ghost {
-  background: var(--bg-tertiary);
+  background: var(--bg-secondary);
   color: var(--text-primary);
-  border: 1.5px solid var(--border-color);
 }
 
 .error-page-btn--ghost:hover {
-  background: var(--bg-secondary);
-  transform: translateY(-2px);
-  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
 }
 
 /* ─── Responsive ─── */
 @media (max-width: 480px) {
-  .error-page-card {
-    padding: 2.5rem 1.75rem;
+  .error-page-card.glass-panel {
+    padding: 2.25rem 1.5rem;
   }
 
   .error-page-code {
     font-size: 3.5rem;
+    text-shadow: 3px 3px 0 var(--shadow-color);
+  }
+
+  .error-page-title {
+    font-size: 1.15rem;
   }
 
   .error-page-icon-ring {
-    width: 80px;
-    height: 80px;
+    width: 76px;
+    height: 76px;
   }
 
   .error-page-icon-ring svg {
@@ -286,18 +299,25 @@
     width: 100%;
   }
 
-  .error-bg-orb-1 {
-    width: 250px;
-    height: 250px;
+  .error-bg-orb-1 { width: 180px; height: 180px; }
+  .error-bg-orb-2 { width: 140px; height: 140px; }
+  .error-bg-orb-3 { width: 90px;  height: 90px; }
+}
+
+/* ─── Motion preferences ─── */
+@media (prefers-reduced-motion: reduce) {
+  .error-bg-orb {
+    animation: none;
   }
 
-  .error-bg-orb-2 {
-    width: 200px;
-    height: 200px;
+  .error-page-card.glass-panel {
+    transition: none;
+    opacity: 1;
+    transform: none;
   }
 
-  .error-bg-orb-3 {
-    width: 120px;
-    height: 120px;
+  .error-page-btn:hover,
+  .error-page-btn:active {
+    transform: none;
   }
 }
