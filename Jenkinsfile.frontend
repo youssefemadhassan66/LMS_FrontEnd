@@ -83,11 +83,8 @@ pipeline {
                             sh '''
                                 echo "WORKDIR=$WORKDIR"
                                 echo "INFRA_DIR=$INFRA_DIR"
-                                set -a
-                                . "$ENV_FILE"
-                                set +a
                             '''
-                            composeBuild("${SERVICE_NAME}")
+                            composeBuild("${SERVICE_NAME}", "${ENV_FILE}")
                             composeDeploy("${SERVICE_NAME}")
                         }
                     }
