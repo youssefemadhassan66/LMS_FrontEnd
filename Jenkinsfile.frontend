@@ -33,17 +33,12 @@ pipeline {
 
     stages {
 
-        stage('Check Start') {
-            steps {
-                script {
-                    if (!params.START_TEST) {
-                        currentBuild.result = 'NOT_BUILT'
-                        return
-                    }
+        stage('Checkout Frontend') {
+            when {
+                expression {
+                    params.START_TEST
                 }
             }
-        }
-        stage('Checkout Frontend') {
             agent { docker {
                     image 'git-agent:latest'
                     args '-v git-repos:/git-repos -e HOME=/home/jenkins'
@@ -56,6 +51,11 @@ pipeline {
 
 
         stage('Test'){
+            when {
+                expression {
+                    params.START_TEST
+                }
+            }
             agent { docker {
                     image 'node-agent:latest'
                     args '-v git-repos:/git-repos'
@@ -84,6 +84,11 @@ pipeline {
         }
 
         stage('Compose Build and Deploy') {
+            when {
+                expression {
+                    params.START_TEST
+                }
+            }
             agent { docker {
                     image 'docker-agent:latest'
                     args '''-v git-repos:/git-repos
