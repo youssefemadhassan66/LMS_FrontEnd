@@ -3,8 +3,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-ENV VITE_API_BASE=https://localhost:3000
-ENV VITE_SOCKET_URL=https://localhost:3000
+ENV VITE_API_BASE=$VITE_API_BASE
+ENV VITE_SOCKET_URL=$VITE_API_SOCKET
 RUN npm run build
 
 
