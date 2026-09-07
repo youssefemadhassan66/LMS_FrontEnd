@@ -14,6 +14,11 @@ pipeline {
             defaultValue: '',
             description: 'Docker image tag supplied by orchestrator'
         )
+        booleanParam(
+            name: 'START_TEST',
+            defaultValue: 'true',
+            description: 'Start test new image or not'
+        )
     }
 
     environment {
@@ -28,6 +33,16 @@ pipeline {
 
     stages {
 
+        stage('Check Start') {
+            steps {
+                script {
+                    if (!params.START_TEST) {
+                        currentBuild.result = 'NOT_BUILT'
+                        return
+                    }
+                }
+            }
+        }
         stage('Checkout Frontend') {
             agent { docker {
                     image 'git-agent:latest'
