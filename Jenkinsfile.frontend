@@ -72,7 +72,7 @@ pipeline {
             agent { docker {
                     image 'docker-agent:latest'
                     args '''-v git-repos:/git-repos
-                            -v /var/run/docker.sock:/var/run/docker.sock
+                            -v /var/run/docker.sock:/var/run/docker.sock --group-add 1003
                         '''
                 }
             }
