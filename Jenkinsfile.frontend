@@ -100,7 +100,7 @@ pipeline {
                                 echo "INFRA_DIR=$INFRA_DIR"
                             '''
                             composeBuild("${SERVICE_NAME}", "${ENV_FILE}")
-                            composeDeploy("${SERVICE_NAME}")
+                            composeDeploy("${SERVICE_NAME}", "${ENV_FILE}")
                         }
                     }
                 }
