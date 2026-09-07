@@ -13,7 +13,7 @@ pipeline {
             name: 'IMAGE_TAG',
             defaultValue: '',
             description: 'Docker image tag supplied by orchestrator'
-        )
+        ),
         booleanParam(
             name: 'START_TEST',
             defaultValue: 'true',
