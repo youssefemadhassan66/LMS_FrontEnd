@@ -77,14 +77,19 @@ pipeline {
                 }
             }
             steps {
-                dir("${INFRA_DIR}") {
-                    script {
-                        sh """
-                            echo "WORKDIR=$WORKDIR"
-                            echo "INFRA_DIR=$INFRA_DIR"
-                        """
-                        composeBuild("${SERVICE_NAME}")
-                        composeDeploy("${SERVICE_NAME}")
+                withCredentials([file(credentialsId: 'frontend-env', variable: 'ENV_FILE')]) {
+                    dir("${INFRA_DIR}") {
+                        script {
+                            sh '''
+                                echo "WORKDIR=$WORKDIR"
+                                echo "INFRA_DIR=$INFRA_DIR"
+                                set -a
+                                . "$ENV_FILE"
+                                set +a
+                            '''
+                            composeBuild("${SERVICE_NAME}")
+                            composeDeploy("${SERVICE_NAME}")
+                        }
                     }
                 }
             }
