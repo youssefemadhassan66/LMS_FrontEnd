@@ -98,7 +98,7 @@ pipeline {
             }
             steps {
                 withCredentials([file(credentialsId: 'frontend-env', variable: 'ENV_FILE')]) {
-                    dir("${INFRA_DIR}") {
+                    dir("${INFRA_DIR}/${SERVICE_NAME}") {
                         script {
                             sh '''
                                 echo "WORKDIR=$WORKDIR"
