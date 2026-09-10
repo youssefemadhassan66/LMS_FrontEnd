@@ -544,7 +544,7 @@ const DashboardOverview = () => {
             <h2>Active Modules</h2>
             <Link to="/dashboard/external" className="view-all-btn">View All →</Link>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.85rem' }}>
+          <div className="dash-cards">
             {extCourses.slice(0, 6).map(c => (
               <div key={c._id} style={{
                 padding: '1rem',
