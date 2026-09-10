@@ -440,46 +440,16 @@ const UsersPage = () => {
     );
 
   return (
-    <div style={{ padding: "2rem 0" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "2rem",
-          flexWrap: "wrap",
-          gap: "1rem",
-        }}
-      >
-        <div>
-          <h1
-            style={{
-              fontSize: "2rem",
-              margin: 0,
-              fontFamily: "var(--font-heading)",
-              fontWeight: 800,
-            }}
-          >
-            <i
-              className="fa-solid fa-users"
-              style={{
-                color: "#6366f1",
-                marginRight: "0.5rem",
-                fontSize: "1.6rem",
-              }}
-            />
+    <div className="dash-page">
+      <div className="dash-head">
+        <div className="dash-head-titles">
+          <h1 className="dash-title">
+            <i className="fa-solid fa-users" style={{ color: "#6366f1" }} />
             User Management
           </h1>
-          <p
-            style={{
-              color: "var(--text-muted)",
-              margin: "0.25rem 0 0",
-              fontWeight: 600,
-            }}
-          >
-            {users.length} registered users
-          </p>
+          <p className="dash-subtitle">{users.length} registered users</p>
         </div>
+        <div className="dash-head-actions">
         <button
           onClick={() => {
             setFormData(emptyForm);
@@ -495,6 +465,7 @@ const UsersPage = () => {
           />{" "}
           Add User
         </button>
+        </div>
       </div>
 
       {error && <p style={{ color: "var(--error)" }}>{error}</p>}
@@ -615,17 +586,9 @@ const UsersPage = () => {
 
       {/* Users Table — desktop only; phones get the card list below. */}
       {!isMobile && (
-      <div
-        className="glass-panel"
-        style={{ borderRadius: "1rem", overflow: "hidden" }}
-      >
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            fontSize: "0.92rem",
-          }}
-        >
+      <div className="glass-panel dash-panel">
+        <div className="dash-table-wrap is-wide">
+        <table>
           <thead>
             <tr
               style={{
@@ -879,6 +842,7 @@ const UsersPage = () => {
             )}
           </tbody>
         </table>
+        </div>
       </div>
       )}
 
