@@ -71,3 +71,78 @@ describe("account approval UI", () => {
     });
   });
 });
+
+describe("admin-set passwords", () => {
+  it("sends the password exactly as typed when creating a user", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /add user/i }));
+
+    await user.type(screen.getByPlaceholderText("John Doe"), "New Student");
+    await user.type(screen.getByPlaceholderText("johndoe"), "newstudent");
+    await user.type(screen.getByPlaceholderText("john@example.com"), "new@example.com");
+    await user.type(screen.getByPlaceholderText("••••••••"), "test@1234");
+
+    await user.click(screen.getByRole("button", { name: /^create user$/i }));
+
+    await waitFor(() => {
+      expect(mocks.request).toHaveBeenCalledWith("/api/v1/user", "POST", {
+        FullName: "New Student",
+        UserName: "newstudent",
+        Email: "new@example.com",
+        password: "test@1234",
+        role: "student",
+      });
+    });
+  });
+
+  it("opts both password fields out of browser autofill", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    // A password manager filling the admin's own credentials into this field
+    // would create the account with a password nobody knows.
+    await user.click(await screen.findByRole("button", { name: /add user/i }));
+    expect(screen.getByPlaceholderText("••••••••")).toHaveAttribute("autocomplete", "new-password");
+
+    await user.click(screen.getByRole("button", { name: /close dialog/i }));
+
+    await user.click((await screen.findAllByRole("button", { name: /^edit$/i }))[0]);
+    expect(screen.getByPlaceholderText(/leave empty to keep/i)).toHaveAttribute("autocomplete", "new-password");
+  });
+
+  it("omits the password from the update payload when the field is left empty", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click((await screen.findAllByRole("button", { name: /^edit$/i }))[0]);
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(mocks.request).toHaveBeenCalledWith(`/api/v1/user/${pendingParent._id}`, "PATCH", {
+        FullName: pendingParent.FullName,
+        UserName: pendingParent.UserName,
+        role: pendingParent.role,
+      });
+    });
+  });
+
+  it("includes the password in the update payload when the admin sets one", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click((await screen.findAllByRole("button", { name: /^edit$/i }))[0]);
+    await user.type(screen.getByPlaceholderText(/leave empty to keep/i), " test@1234 ");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(mocks.request).toHaveBeenCalledWith(`/api/v1/user/${pendingParent._id}`, "PATCH", {
+        FullName: pendingParent.FullName,
+        UserName: pendingParent.UserName,
+        role: pendingParent.role,
+        password: " test@1234 ",
+      });
+    });
+  });
+});
