@@ -1146,6 +1146,7 @@ const UsersPage = () => {
               <input
                 className="modal-input"
                 required
+                autoComplete="off"
                 placeholder="johndoe"
                 value={formData.UserName}
                 onChange={(e) =>
@@ -1160,6 +1161,7 @@ const UsersPage = () => {
               className="modal-input"
               type="email"
               required
+              autoComplete="off"
               placeholder="john@example.com"
               value={formData.Email}
               onChange={(e) =>
@@ -1169,16 +1171,26 @@ const UsersPage = () => {
           </div>
           <div className="modal-form-group">
             <label className="modal-label">Password</label>
+            {/* autoComplete="new-password" keeps the browser's password manager
+                from autofilling the admin's own saved credentials over the
+                password being typed here — the account would then be created
+                with a password nobody knows. */}
             <input
               className="modal-input"
               type="password"
               required
+              minLength={8}
+              autoComplete="new-password"
               placeholder="••••••••"
               value={formData.password}
               onChange={(e) =>
                 setFormData({ ...formData, password: e.target.value })
               }
             />
+            <p className="modal-hint">
+              At least 8 characters. Stored exactly as typed — leading and
+              trailing spaces count.
+            </p>
           </div>
           <div className="modal-form-group">
             <label className="modal-label">Role</label>
@@ -1271,12 +1283,18 @@ const UsersPage = () => {
             <input
               className="modal-input"
               type="password"
+              minLength={8}
+              autoComplete="new-password"
               placeholder="Leave empty to keep"
               value={formData.password}
               onChange={(e) =>
                 setFormData({ ...formData, password: e.target.value })
               }
             />
+            <p className="modal-hint">
+              At least 8 characters. Stored exactly as typed — leading and
+              trailing spaces count.
+            </p>
           </div>
           <div className="modal-form-group">
             <label className="modal-label">Role</label>
