@@ -110,6 +110,40 @@ const accountStatusBadge = (user) => {
   );
 };
 
+// Who reviewed this account and when. approvalReviewedBy is populated by the
+// API, so it is an object with a name rather than an id; older records that
+// predate the review fields simply render nothing.
+const ReviewedLine = ({ user }) => {
+  if (!approvalRequiredRoles.has(user.role)) return null;
+
+  const status = getApprovalStatus(user);
+  if (status === "pending") return null;
+
+  const reviewer = user.approvalReviewedBy;
+  const reviewedAt = user.approvalReviewedAt;
+  if (!reviewer && !reviewedAt) return null;
+
+  const verb = status === "rejected" ? "Rejected" : "Approved";
+  const who = reviewer?.FullName || reviewer?.Email;
+  const when = reviewedAt ? new Date(reviewedAt).toLocaleDateString() : null;
+
+  return (
+    <div
+      style={{
+        color: "var(--text-muted)",
+        fontSize: "0.72rem",
+        marginTop: "0.25rem",
+        overflowWrap: "anywhere",
+      }}
+      title={reviewedAt ? new Date(reviewedAt).toLocaleString() : undefined}
+    >
+      {verb}
+      {who ? ` by ${who}` : ""}
+      {when ? ` · ${when}` : ""}
+    </div>
+  );
+};
+
 // Menu items in the mobile row menu are full-width and left-aligned, so the
 // menu reads as a list rather than a cluster of pill buttons.
 const rowMenuItemStyle = {
@@ -766,6 +800,7 @@ const UsersPage = () => {
                     </td>
                     <td style={{ padding: "1rem 1.5rem" }}>
                       {accountStatusBadge(u)}
+                      <ReviewedLine user={u} />
                     </td>
                     <td style={{ padding: "1rem 1.5rem", textAlign: "right" }}>
                       <div
@@ -1043,6 +1078,7 @@ const UsersPage = () => {
                   >
                     {roleBadge(u.role)}
                     {accountStatusBadge(u)}
+                      <ReviewedLine user={u} />
                   </div>
 
                   {menuOpen && (

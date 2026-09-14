@@ -146,3 +146,34 @@ describe("admin-set passwords", () => {
     });
   });
 });
+
+describe("account review provenance", () => {
+  it("names the admin who approved an account, and when", async () => {
+    const reviewed = {
+      ...pendingParent,
+      approvalStatus: "approved",
+      approvalReviewedBy: { _id: "a1", FullName: "Youssef Emad", Email: "admin@example.com" },
+      approvalReviewedAt: "2026-09-10T12:00:00.000Z",
+    };
+    mocks.request.mockImplementation((url) => {
+      if (url.startsWith("/api/v1/user?")) {
+        return Promise.resolve({ data: { users: [reviewed], results: 1 } });
+      }
+      if (url === "/api/v1/user/pending-approvals") return Promise.resolve({ data: { users: [] } });
+      if (url === "/api/v1/student-instructor-assignments") return Promise.resolve({ data: { assignments: [] } });
+      return Promise.resolve({ status: "success", data: {} });
+    });
+
+    renderPage();
+
+    const lines = await screen.findAllByText(/Approved by Youssef Emad/);
+    expect(lines.length).toBeGreaterThan(0);
+  });
+
+  it("says nothing for an account still awaiting review", async () => {
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: /pending account approvals/i })).toBeInTheDocument();
+    expect(screen.queryByText(/Approved by/)).not.toBeInTheDocument();
+  });
+});
