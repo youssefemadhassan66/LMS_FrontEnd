@@ -79,7 +79,9 @@ const SUBJECTS = [
 // advertises rather than pretending to deliver it. Everything typed is carried
 // into a prefilled message, and the fields are left standing: if the mail client
 // never opens, the words are still on screen to copy.
-const CONTACT_EMAIL = 'hello@algogambit.online';
+const CONTACT_EMAIL = 'youssefemadwork666@gmail.com';
+const CONTACT_PHONE = '01501598998';
+const CONTACT_PHONE_TEL = '+201501598998';
 
 const composeMailto = (form) => {
   const data = new FormData(form);
@@ -131,8 +133,8 @@ const Contact = () => {
                 <i className="fa-solid fa-envelope" aria-hidden="true" />
                 <span>
                   <span className="ct-line-key">Email</span>
-                  <a className="ct-line-value" href="mailto:hello@algogambit.online">
-                    hello@algogambit.online
+                  <a className="ct-line-value" href={`mailto:${CONTACT_EMAIL}`}>
+                    {CONTACT_EMAIL}
                   </a>
                 </span>
               </li>
@@ -140,7 +142,7 @@ const Contact = () => {
                 <i className="fa-solid fa-phone" aria-hidden="true" />
                 <span>
                   <span className="ct-line-key">Phone</span>
-                  <a className="ct-line-value" href="tel:+20211234567">+20 2 1123 4567</a>
+                  <a className="ct-line-value" href={`tel:${CONTACT_PHONE_TEL}`}>{CONTACT_PHONE}</a>
                 </span>
               </li>
               <li className="ct-line">
@@ -167,9 +169,13 @@ const Contact = () => {
               {sent && (
                 <p className="ct-sent">
                   <i className="fa-solid fa-envelope-open-text" aria-hidden="true" />
-                  Your mail app should be opening with this message ready to send. If nothing
-                  happened, write to <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> —
-                  everything you typed is still here to copy.
+                  {/* One wrapper, so the flex row has two items: icon and text.
+                      Bare text nodes and the link each became their own column. */}
+                  <span>
+                    Your mail app should be opening with this message ready to send. If nothing
+                    happened, write to <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> —
+                    everything you typed is still here to copy.
+                  </span>
                 </p>
               )}
             </div>

@@ -1599,6 +1599,23 @@ a.ct-line-value:hover {
   transition: border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
+/* Chrome and Edge paint their own light autofill background over the field
+   the moment a saved name or email is picked, which flashed the dark theme's
+   inputs white. background-color is ignored there; an inset shadow the size of
+   the field and a text fill are the only things the autofill style honours. */
+.ct-field input:-webkit-autofill,
+.ct-field input:-webkit-autofill:hover,
+.ct-field input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-primary);
+  -webkit-box-shadow: inset 0 0 0 100px var(--bg-secondary);
+  caret-color: var(--text-primary);
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+.ct-field input:-webkit-autofill:focus {
+  -webkit-box-shadow: inset 0 0 0 100px var(--bg-secondary), 0 0 0 3px var(--hm-accent-soft);
+}
+
 .ct-field textarea {
   resize: vertical;
   min-height: 8rem;
@@ -1621,7 +1638,7 @@ a.ct-line-value:hover {
    form still hears that the message went. */
 .ct-sent {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 0.6rem;
   margin-bottom: 1.25rem;
   padding: 0.85rem 1.1rem;
