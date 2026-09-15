@@ -38,6 +38,22 @@ const LandingLayout = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [menuOpen, location.pathname]);
 
+  // Back-to-top appears once the reader is a screen or so down the page.
+  // Same subscribe-in-a-listener shape as the Escape handler above.
+  const [showTop, setShowTop] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setShowTop(window.scrollY > 400);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+  };
+
   const isActive = (path) => location.pathname === path ? 'active' : '';
   // The three public pages share one landing system, so they share its
   // chrome: a translucent dark navbar and footer rather than the default
@@ -106,6 +122,17 @@ const LandingLayout = () => {
           <Outlet />
         </div>
       </main>
+
+      {isCosmic && showTop && (
+        <button
+          type="button"
+          className="back-to-top"
+          onClick={scrollToTop}
+          aria-label="Back to top"
+        >
+          <i className="fa-solid fa-arrow-up" />
+        </button>
+      )}
 
       <footer className={`landing-footer glass-panel${isCosmic ? ' cosmic' : ''}`}>
         <Logo size="sm" variant="full" />
