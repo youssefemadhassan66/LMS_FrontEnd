@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
+import { Outlet, Link, useLocation, useNavigationType } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import Logo from '../Logo/Logo';
 import useScrollReveal from '../../hooks/useScrollReveal';
@@ -48,6 +48,18 @@ const LandingLayout = () => {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  // A client-side route change keeps the window's scroll offset, so "Talk to
+  // us" at the foot of Home landed the reader at the foot of Contact. New
+  // pages open at the top. Back/forward (POP) is left alone so the browser can
+  // put the reader back where they were, and a #hash target is left to scroll
+  // to itself. Layout effect, so the old offset never paints on the new page.
+  const navigationType = useNavigationType();
+
+  useLayoutEffect(() => {
+    if (navigationType === 'POP' || location.hash) return;
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname, location.hash, navigationType]);
 
   const scrollToTop = () => {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
