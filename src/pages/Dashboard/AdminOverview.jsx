@@ -328,7 +328,7 @@ const AdminOverview = () => {
           <i className="fa-solid fa-chart-pie" style={{ color: '#6366f1', marginRight: '0.5rem' }} />
           User Distribution
         </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.85rem' }}>
+        <div className="dash-stats is-trio">
           {[
             { label: 'Students',    count: students.length,    total: users.length, color: '#10b981', icon: 'fa-solid fa-graduation-cap' },
             { label: 'Instructors', count: instructors.length, total: users.length, color: '#3b82f6', icon: 'fa-solid fa-chalkboard-user' },
