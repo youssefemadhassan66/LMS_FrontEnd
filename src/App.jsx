@@ -75,6 +75,7 @@ function App() {
                 </Route>
 
                 <Route path="/login" element={<Auth />} />
+                <Route path="/signup" element={<Auth />} />
                 <Route path="/account-pending" element={<AccountPending />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route

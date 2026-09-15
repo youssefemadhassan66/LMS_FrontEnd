@@ -186,7 +186,7 @@ const Home = () => {
             from their very first line of code all the way to building their own games and websites.
           </p>
           <div className="hero-actions">
-            <Link to="/login" className="nb-btn nb-btn-primary nb-btn-lg">
+            <Link to="/signup" className="nb-btn nb-btn-primary nb-btn-lg">
               <i className="fa-solid fa-play" /> Start Learning Free
             </Link>
             <Link to="/about" className="nb-btn nb-btn-secondary nb-btn-lg">
@@ -363,7 +363,7 @@ const Home = () => {
           Join AlgoGambit and start building real things from day one. No experience needed.
         </p>
         <div className="hm-close-actions">
-          <Link to="/login" className="nb-btn nb-btn-primary nb-btn-lg">
+          <Link to="/signup" className="nb-btn nb-btn-primary nb-btn-lg">
             <i className="fa-solid fa-arrow-right" /> Get Started — It is Free
           </Link>
           <Link to="/contact" className="nb-btn nb-btn-secondary nb-btn-lg">

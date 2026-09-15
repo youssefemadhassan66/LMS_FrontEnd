@@ -314,7 +314,7 @@ const Contact = () => {
           The first session is free, and you can book it from your account in a couple of minutes.
         </p>
         <div className="hm-close-actions">
-          <Link to="/login" className="nb-btn nb-btn-primary nb-btn-lg">
+          <Link to="/signup" className="nb-btn nb-btn-primary nb-btn-lg">
             <i className="fa-solid fa-arrow-right" /> Start learning
           </Link>
           <Link to="/about" className="nb-btn nb-btn-secondary nb-btn-lg">

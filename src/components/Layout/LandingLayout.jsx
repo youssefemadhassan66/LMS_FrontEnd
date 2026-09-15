@@ -94,7 +94,7 @@ const LandingLayout = () => {
             <i className={theme === 'light' ? 'fa-solid fa-moon' : 'fa-solid fa-sun'} />
           </button>
           <Link to="/login" className="btn-login">Login</Link>
-          <Link to="/login" className="btn-signup">Get Started</Link>
+          <Link to="/signup" className="btn-signup">Get Started</Link>
 
           {/* Below 768px the nav links are hidden and below 520px so is the
               login link, which previously left About, Contact and Login with
