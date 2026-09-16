@@ -33,3 +33,7 @@ public/excalidraw-assets/
 
 # Claude Code scratch worktrees
 .claude/worktrees/
+
+# Security review output. Names live weaknesses and unfixed findings, and this
+# repository is public — keep it on the reviewer's machine, never in the repo.
+SECURITY_REVIEW.md
