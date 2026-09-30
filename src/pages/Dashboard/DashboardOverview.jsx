@@ -5,6 +5,7 @@ import useFetchData from '../../hooks/useFetchData';
 import { useApiRequest } from '../../hooks/useApiRequest';
 import NextSessionCountdown from '../../components/NextSessionCountdown/NextSessionCountdown';
 import './DashboardOverview.css';
+import CountUp from '../../components/Motion/CountUp';
 
 const DashboardOverview = () => {
   const { user } = useAuth();
@@ -274,28 +275,28 @@ const DashboardOverview = () => {
          <div className="stat-card">
             <div className="stat-icon" style={{ background: 'var(--accent-yellow)' }}><i className="fa-solid fa-list-check" /></div>
             <div className="stat-info">
-               <h3>{ts.totalTasks ?? '—'}</h3>
+               <h3><CountUp value={ts.totalTasks ?? '—'} /></h3>
                <p>Total Tasks</p>
             </div>
          </div>
          <div className="stat-card">
             <div className="stat-icon" style={{ background: 'var(--accent-peach)' }}><i className="fa-solid fa-circle-check" /></div>
             <div className="stat-info">
-               <h3>{ts.completedTasks ?? '—'}</h3>
+               <h3><CountUp value={ts.completedTasks ?? '—'} /></h3>
                <p>Completed</p>
             </div>
          </div>
          <div className="stat-card">
             <div className="stat-icon" style={{ background: 'var(--accent-orange)' }}><i className="fa-solid fa-hourglass-half" /></div>
             <div className="stat-info">
-               <h3>{ts.pendingTasks ?? '—'}</h3>
+               <h3><CountUp value={ts.pendingTasks ?? '—'} /></h3>
                <p>Pending Tasks</p>
             </div>
          </div>
          <div className="stat-card">
             <div className="stat-icon" style={{ background: 'var(--brand-primary)', color: '#FFFFFF' }}><i className="fa-solid fa-trophy" /></div>
             <div className="stat-info">
-               <h3>{ts.completionRate !== undefined ? `${Math.round(ts.completionRate)}%` : '—'}</h3>
+               <h3><CountUp value={ts.completionRate !== undefined ? Math.round(ts.completionRate) : '—'} suffix={ts.completionRate !== undefined ? '%' : ''} /></h3>
                <p>Completion Rate</p>
             </div>
          </div>
@@ -306,28 +307,28 @@ const DashboardOverview = () => {
          <div className="stat-card">
             <div className="stat-icon" style={{ background: 'var(--accent-rose)' }}><i className="fa-solid fa-file-lines" /></div>
             <div className="stat-info">
-               <h3>{ss.totalSubmissions ?? '—'}</h3>
+               <h3><CountUp value={ss.totalSubmissions ?? '—'} /></h3>
                <p>Total Submissions</p>
             </div>
          </div>
          <div className="stat-card">
             <div className="stat-icon" style={{ background: 'var(--accent-yellow)' }}><i className="fa-solid fa-inbox" /></div>
             <div className="stat-info">
-               <h3>{ss.reviewed ?? '—'}</h3>
+               <h3><CountUp value={ss.reviewed ?? '—'} /></h3>
                <p>Reviewed</p>
             </div>
          </div>
          <div className="stat-card">
             <div className="stat-icon" style={{ background: 'var(--accent-orange)' }}><i className="fa-solid fa-paper-plane" /></div>
             <div className="stat-info">
-               <h3>{ss.pending ?? '—'}</h3>
+               <h3><CountUp value={ss.pending ?? '—'} /></h3>
                <p>Awaiting Review</p>
             </div>
          </div>
          <div className="stat-card">
             <div className="stat-icon" style={{ background: 'var(--brand-primary)', color: '#FFFFFF' }}><i className="fa-solid fa-triangle-exclamation" /></div>
             <div className="stat-info">
-               <h3>{ss.late ?? '—'}</h3>
+               <h3><CountUp value={ss.late ?? '—'} /></h3>
                <p>Late Submissions</p>
             </div>
          </div>

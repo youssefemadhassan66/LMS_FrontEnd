@@ -107,17 +107,80 @@
 }
 
 .page-stage__content {
-  transition: opacity 0.18s ease-out;
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  transition: opacity 0.22s ease-out, transform 0.32s var(--ease-out-quart);
 }
 
 .page-stage.is-pending .page-stage__content {
   opacity: 0;
+  transform: translateY(8px);
   pointer-events: none;
   transition: none;
+}
+
+/* ── Entrance ─────────────────────────────────────────────────────────────
+   Plays once, as a page appears: its sections, the first rows of a table and
+   the first cards rise into place a beat apart. Scoped to .is-entering (about
+   0.7s after reveal), so filtering a list later does not replay it. Transform
+   and opacity only; nothing that moves layout. */
+@keyframes stageRise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes stageGrowX {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+.page-stage.is-entering .page-stage__content > * > *,
+.page-stage.is-entering tbody > tr,
+.page-stage.is-entering .users-card {
+  animation: stageRise 0.36s var(--ease-out-quart) both;
+}
+
+/* Sections of the page, top to bottom. */
+.page-stage.is-entering .page-stage__content > * > :nth-child(2) { animation-delay: 40ms; }
+.page-stage.is-entering .page-stage__content > * > :nth-child(3) { animation-delay: 80ms; }
+.page-stage.is-entering .page-stage__content > * > :nth-child(4) { animation-delay: 120ms; }
+.page-stage.is-entering .page-stage__content > * > :nth-child(5) { animation-delay: 160ms; }
+.page-stage.is-entering .page-stage__content > * > :nth-child(n + 6) { animation-delay: 200ms; }
+
+/* Rows and cards: a short cascade for the first screenful, then together. */
+.page-stage.is-entering tbody > tr:nth-child(1),
+.page-stage.is-entering .users-card:nth-child(1) { animation-delay: 120ms; }
+.page-stage.is-entering tbody > tr:nth-child(2),
+.page-stage.is-entering .users-card:nth-child(2) { animation-delay: 150ms; }
+.page-stage.is-entering tbody > tr:nth-child(3),
+.page-stage.is-entering .users-card:nth-child(3) { animation-delay: 180ms; }
+.page-stage.is-entering tbody > tr:nth-child(4),
+.page-stage.is-entering .users-card:nth-child(4) { animation-delay: 210ms; }
+.page-stage.is-entering tbody > tr:nth-child(5),
+.page-stage.is-entering .users-card:nth-child(5) { animation-delay: 240ms; }
+.page-stage.is-entering tbody > tr:nth-child(n + 6),
+.page-stage.is-entering .users-card:nth-child(n + 6) { animation-delay: 270ms; }
+
+/* Progress bars fill from empty as the page arrives. */
+.page-stage.is-entering .progress-bar {
+  transform-origin: left center;
+  animation: stageGrowX 0.7s var(--ease-out-quart) 0.15s both;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .page-stage__content {
     transition: none;
+  }
+  .page-stage.is-pending .page-stage__content {
+    transform: none;
+  }
+  .page-stage.is-entering *,
+  .page-stage.is-entering .page-stage__content > * > * {
+    animation: none !important;
   }
 }

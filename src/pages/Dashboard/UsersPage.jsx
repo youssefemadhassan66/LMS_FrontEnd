@@ -1,9 +1,35 @@
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useCallback, useMemo, useState, useEffect } from "react";
 import Modal from "../../components/Modal/Modal";
 import Pagination from "../../components/Pagination/Pagination";
 import { useApiRequest } from "../../hooks/useApiRequest";
 import { SkeletonTableRows } from "../../components/Skeleton/Skeleton";
 import useMediaQuery from "../../hooks/useMediaQuery";
+import "./UsersPage.css";
+
+const ROLE_TABS = [
+  { value: "all", label: "All" },
+  { value: "student", label: "Students" },
+  { value: "parent", label: "Parents" },
+  { value: "instructor", label: "Instructors" },
+  { value: "admin", label: "Admins" },
+];
+
+const STATUS_OPTIONS = [
+  { value: "all", label: "Any status" },
+  { value: "active", label: "Active" },
+  { value: "pending", label: "Pending approval" },
+  { value: "rejected", label: "Rejected" },
+  { value: "inactive", label: "Inactive" },
+];
+
+// The list endpoint pages but returns no total, so the page loads everyone in
+// batches and filters in the browser. Paging the server list directly meant
+// the pager always thought there was one page: anyone past the first 20 was
+// unreachable, and so were they in the link dialogs, which read this list.
+// 100 per batch keeps working if the API ever caps its page size; the batch
+// cap guards against a runaway loop.
+const USERS_BATCH = 100;
+const MAX_BATCHES = 50;
 
 const roleBadge = (role) => {
   const colors = {
@@ -144,13 +170,48 @@ const ReviewedLine = ({ user }) => {
   );
 };
 
-// Menu items in the mobile row menu are full-width and left-aligned, so the
-// menu reads as a list rather than a cluster of pill buttons.
-const rowMenuItemStyle = {
-  width: "100%",
-  justifyContent: "flex-start",
-  padding: "0.55rem 0.7rem",
-  fontSize: "0.85rem",
+const UserAvatar = ({ user, size = 36 }) => {
+  const initials = (user.FullName || user.UserName || "U")
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+  return (
+    <span
+      className="users-avatar"
+      aria-hidden="true"
+      style={{ width: size, height: size, background: roleAvatarBg[user.role] || "#10b981" }}
+    >
+      {initials}
+    </span>
+  );
+};
+
+const EmptyUsers = ({ filtered, onClear }) => (
+  <div className="users-empty">
+    <i className={filtered ? "fa-solid fa-magnifying-glass" : "fa-solid fa-user-plus"} aria-hidden="true" />
+    <strong>{filtered ? "No one matches these filters" : "No users yet"}</strong>
+    {filtered ? (
+      <button type="button" className="users-row-action" onClick={onClear} style={{ marginTop: "0.75rem" }}>
+        Clear filters
+      </button>
+    ) : (
+      <span>Add the first account with the Add User button.</span>
+    )}
+  </div>
+);
+
+const accountStatusOf = (user) => {
+  if (user.isActive === false) return "inactive";
+  const approval = getApprovalStatus(user);
+  return approval === "approved" ? "active" : approval;
+};
+
+const linkActionFor = (user) => {
+  if (!canManageConnections(user)) return null;
+  const labels = { parent: "Link student", instructor: "Assign student", student: "Links" };
+  return labels[user.role] ? { type: user.role, label: labels[user.role] } : null;
 };
 
 const UsersPage = () => {
@@ -167,8 +228,11 @@ const UsersPage = () => {
   /* Pagination */
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
-  const [totalDocs, setTotalDocs] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
+
+  /* Filters */
+  const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser] = useState(null);
@@ -215,25 +279,23 @@ const UsersPage = () => {
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: String(limit),
-      });
-      const data = await request(`/api/v1/user?${params.toString()}`);
-      const list = data.data?.docs || data.data?.users || data.data || [];
-      const arr = Array.isArray(list) ? list : [];
-      setUsers(arr);
-      setTotalDocs(
-        data.data?.total || data.totalDocs || data.results || arr.length,
-      );
-      setTotalPages(data.data?.totalPages || data.totalPages || 1);
+      const all = [];
+      for (let batch = 1; batch <= MAX_BATCHES; batch += 1) {
+        const params = new URLSearchParams({ page: String(batch), limit: String(USERS_BATCH) });
+        const data = await request(`/api/v1/user?${params.toString()}`);
+        const list = data.data?.docs || data.data?.users || data.data || [];
+        const rows = Array.isArray(list) ? list : [];
+        all.push(...rows);
+        if (rows.length < USERS_BATCH) break;
+      }
+      setUsers(all);
       setError(null);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [limit, page, request]);
+  }, [request]);
 
   useEffect(() => {
     fetchUsers();
@@ -447,6 +509,57 @@ const UsersPage = () => {
     }
   };
 
+  // Search and status narrow the list; the role tabs count the matches in
+  // each role, so a tab's number is always what you would see after clicking.
+  const matchesSearchAndStatus = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return users.filter((u) => {
+      if (statusFilter !== "all" && accountStatusOf(u) !== statusFilter) return false;
+      if (!needle) return true;
+      return [u.FullName, u.UserName, u.Email].some((field) =>
+        (field || "").toLowerCase().includes(needle),
+      );
+    });
+  }, [users, query, statusFilter]);
+
+  const roleCounts = useMemo(() => {
+    const counts = { all: matchesSearchAndStatus.length };
+    matchesSearchAndStatus.forEach((u) => {
+      counts[u.role] = (counts[u.role] || 0) + 1;
+    });
+    return counts;
+  }, [matchesSearchAndStatus]);
+
+  const filteredUsers = useMemo(
+    () =>
+      roleFilter === "all"
+        ? matchesSearchAndStatus
+        : matchesSearchAndStatus.filter((u) => u.role === roleFilter),
+    [matchesSearchAndStatus, roleFilter],
+  );
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / limit));
+  const currentPage = Math.min(page, totalPages);
+  const pagedUsers = filteredUsers.slice((currentPage - 1) * limit, currentPage * limit);
+  const hasFilters = Boolean(query.trim()) || roleFilter !== "all" || statusFilter !== "all";
+
+  const clearFilters = () => {
+    setQuery("");
+    setRoleFilter("all");
+    setStatusFilter("all");
+    setPage(1);
+  };
+
+  const headcount = (() => {
+    if (loading && users.length === 0) return "Loading people\u2026";
+    const parts = [`${users.length} ${users.length === 1 ? "person" : "people"}`];
+    ["student", "parent", "instructor", "admin"].forEach((role) => {
+      const n = users.filter((u) => u.role === role).length;
+      if (n) parts.push(`${n} ${role}${n === 1 ? "" : "s"}`);
+    });
+    return parts.join(" \u00b7 ");
+  })();
+
   const studentsList = users.filter(
     (u) => u.role === "student" && canManageConnections(u),
   );
@@ -478,31 +591,28 @@ const UsersPage = () => {
       <div className="dash-head">
         <div className="dash-head-titles">
           <h1 className="dash-title">
-            <i className="fa-solid fa-users" style={{ color: "#6366f1" }} />
-            User Management
+            <i className="fa-solid fa-users" style={{ color: "var(--brand-primary)" }} />
+            Users
           </h1>
-          <p className="dash-subtitle">{users.length} registered users</p>
+          <p className="dash-subtitle">{headcount}</p>
         </div>
         <div className="dash-head-actions">
-        <button
-          onClick={() => {
-            setFormData(emptyForm);
-            setFormError(null);
-            setShowCreate(true);
-          }}
-          className="nb-btn nb-btn-primary"
-          style={{ padding: "0.65rem 1.4rem" }}
-        >
-          <i
-            className="fa-solid fa-user-plus"
-            style={{ marginRight: "0.4rem" }}
-          />{" "}
-          Add User
-        </button>
+          <button
+            type="button"
+            onClick={() => {
+              setFormData(emptyForm);
+              setFormError(null);
+              setShowCreate(true);
+            }}
+            className="nb-btn nb-btn-primary"
+            style={{ padding: "0.65rem 1.4rem" }}
+          >
+            <i className="fa-solid fa-user-plus" style={{ marginRight: "0.4rem" }} /> Add User
+          </button>
         </div>
       </div>
 
-      {error && <p style={{ color: "var(--error)" }}>{error}</p>}
+      {error && <p role="alert" style={{ color: "var(--error)" }}>{error}</p>}
       {approvalError && (
         <p role="alert" style={{ color: "var(--error)" }}>
           {approvalError}
@@ -514,10 +624,10 @@ const UsersPage = () => {
           aria-label="Pending account approvals"
           className="glass-panel"
           style={{
-            borderRadius: "1rem",
-            marginBottom: "1.5rem",
+            borderRadius: "var(--radius-md)",
+            marginBottom: "1.25rem",
             overflow: "hidden",
-            border: "1px solid #f59e0b66",
+            border: "1.5px solid rgba(245,158,11,0.45)",
           }}
         >
           <div
@@ -526,44 +636,33 @@ const UsersPage = () => {
               alignItems: "center",
               justifyContent: "space-between",
               gap: "1rem",
-              padding: "1rem 1.25rem",
+              padding: "0.9rem 1.25rem",
               background: "rgba(245,158,11,0.1)",
             }}
           >
             <div>
-              <h2 style={{ margin: 0, fontSize: "1.05rem" }}>
-                <i
-                  className="fa-solid fa-user-clock"
-                  style={{ color: "#d97706", marginRight: "0.5rem" }}
-                />
-                Pending account approvals
+              <h2 style={{ margin: 0, fontSize: "1rem" }}>
+                <i className="fa-solid fa-user-clock" style={{ color: "var(--warning)", marginRight: "0.5rem" }} />
+                Waiting for approval
               </h2>
-              <p
-                style={{
-                  margin: "0.25rem 0 0",
-                  color: "var(--text-muted)",
-                  fontSize: "0.85rem",
-                }}
-              >
-                These new student and parent accounts cannot access the
-                dashboard yet.
+              <p style={{ margin: "0.25rem 0 0", color: "var(--text-muted)", fontSize: "0.85rem" }}>
+                These new student and parent accounts cannot use the dashboard until you approve them.
               </p>
             </div>
             <span
               className="modal-badge"
               style={{
-                background: "#fff7ed",
-                color: "#d97706",
-                border: "1px solid #f59e0b66",
+                background: "rgba(245,158,11,0.15)",
+                color: "var(--warning)",
+                border: "1px solid rgba(245,158,11,0.45)",
                 fontWeight: 700,
+                whiteSpace: "nowrap",
               }}
             >
               {pendingApprovals.length} waiting
             </span>
           </div>
-          <div
-            style={{ display: "grid", gap: "0.75rem", padding: "1rem 1.25rem" }}
-          >
+          <div style={{ display: "grid", gap: "0.75rem", padding: "1rem 1.25rem" }}>
             {pendingApprovals.map((pendingUser) => (
               <div
                 key={pendingUser._id}
@@ -577,13 +676,10 @@ const UsersPage = () => {
                   borderBottom: "1px solid var(--border-color)",
                 }}
               >
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <strong>{pendingUser.FullName}</strong>
-                  <span
-                    style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}
-                  >
-                    {" "}
-                    · {pendingUser.Email} · {pendingUser.role}
+                  <span style={{ color: "var(--text-muted)", fontSize: "0.85rem", overflowWrap: "anywhere" }}>
+                    {" "}&middot; {pendingUser.Email} &middot; {pendingUser.role}
                   </span>
                 </div>
                 <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -592,9 +688,7 @@ const UsersPage = () => {
                     className="modal-btn modal-btn-danger"
                     style={{ width: "auto", padding: "0.45rem 0.75rem" }}
                     disabled={approvalActionId === pendingUser._id}
-                    onClick={() =>
-                      handleApprovalReview(pendingUser._id, "rejected")
-                    }
+                    onClick={() => handleApprovalReview(pendingUser._id, "rejected")}
                   >
                     Reject
                   </button>
@@ -603,13 +697,9 @@ const UsersPage = () => {
                     className="modal-btn modal-btn-primary"
                     style={{ width: "auto", padding: "0.45rem 0.75rem" }}
                     disabled={approvalActionId === pendingUser._id}
-                    onClick={() =>
-                      handleApprovalReview(pendingUser._id, "approved")
-                    }
+                    onClick={() => handleApprovalReview(pendingUser._id, "approved")}
                   >
-                    {approvalActionId === pendingUser._id
-                      ? "Saving..."
-                      : "Approve"}
+                    {approvalActionId === pendingUser._id ? "Saving..." : "Approve"}
                   </button>
                 </div>
               </div>
@@ -618,479 +708,245 @@ const UsersPage = () => {
         </section>
       )}
 
-      {/* Users Table — desktop only; phones get the card list below. */}
-      {!isMobile && (
-      <div className="glass-panel dash-panel">
-        <div className="dash-table-wrap is-wide">
-        <table>
-          <thead>
-            <tr
-              style={{
-                background: "var(--table-header-bg)",
-                borderBottom: "2px solid var(--border-color)",
-                textAlign: "left",
+      {/* ─── Find people ─── */}
+      <div className="users-toolbar">
+        <div className="users-search">
+          <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Search by name, username or email"
+            aria-label="Search users"
+          />
+          {query && (
+            <button
+              type="button"
+              className="users-search-clear"
+              aria-label="Clear search"
+              onClick={() => {
+                setQuery("");
+                setPage(1);
               }}
             >
-              <th
-                style={{
-                  padding: "1rem 1.5rem",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  fontSize: "0.75rem",
-                  letterSpacing: "0.05em",
-                }}
-              >
-                User
-              </th>
-              <th
-                style={{
-                  padding: "1rem 1.5rem",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  fontSize: "0.75rem",
-                  letterSpacing: "0.05em",
-                }}
-              >
-                Email
-              </th>
-              <th
-                style={{
-                  padding: "1rem 1.5rem",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  fontSize: "0.75rem",
-                  letterSpacing: "0.05em",
-                }}
-              >
-                Role
-              </th>
-              <th
-                style={{
-                  padding: "1rem 1.5rem",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  fontSize: "0.75rem",
-                  letterSpacing: "0.05em",
-                }}
-              >
-                Status
-              </th>
-              <th
-                style={{
-                  padding: "1rem 1.5rem",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  fontSize: "0.75rem",
-                  letterSpacing: "0.05em",
-                  textAlign: "right",
-                }}
-              >
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && <SkeletonTableRows cols={5} rows={5} />}
-            {!loading &&
-              users.map((u) => {
-                const initials = (u.FullName || "U")
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .toUpperCase()
-                  .slice(0, 2);
-                const avatarColor = roleAvatarBg[u.role] || "#10b981";
-                return (
-                  <tr
-                    key={u._id}
-                    style={{
-                      borderBottom: "1px solid var(--border-color)",
-                      background: "var(--card-bg)",
-                    }}
-                  >
-                    <td style={{ padding: "1rem 1.5rem" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.75rem",
-                        }}
-                      >
-                        <div
-                          className="modal-profile-avatar"
-                          style={{
-                            width: "36px",
-                            height: "36px",
-                            fontSize: "0.85rem",
-                            borderRadius: "10px",
-                            background: avatarColor,
-                          }}
-                        >
-                          {initials}
-                        </div>
-                        <div>
-                          <div
-                            style={{
-                              fontWeight: 700,
-                              color: "var(--text-primary)",
-                            }}
-                          >
-                            {u.FullName}
+              <i className="fa-solid fa-xmark" aria-hidden="true" style={{ position: "static", transform: "none" }} />
+            </button>
+          )}
+        </div>
+
+        <div className="users-roles" role="tablist" aria-label="Filter by role">
+          {ROLE_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              role="tab"
+              aria-selected={roleFilter === tab.value}
+              className="users-role-tab"
+              onClick={() => {
+                setRoleFilter(tab.value);
+                setPage(1);
+              }}
+            >
+              {tab.label}
+              <span className="users-role-count">{roleCounts[tab.value] ?? 0}</span>
+            </button>
+          ))}
+        </div>
+
+        <select
+          className="users-status"
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(1);
+          }}
+          aria-label="Filter by status"
+        >
+          {STATUS_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* ─── Desktop table ─── */}
+      {!isMobile && (
+        <div className="glass-panel dash-panel">
+          <div className="dash-table-wrap is-wide">
+            <table className="users-table">
+              <thead>
+                <tr>
+                  <th scope="col">Person</th>
+                  <th scope="col">Role</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading && <SkeletonTableRows cols={4} rows={6} />}
+                {!loading &&
+                  pagedUsers.map((u) => {
+                    const link = linkActionFor(u);
+                    return (
+                      <tr key={u._id}>
+                        <td>
+                          <div className="users-person">
+                            <UserAvatar user={u} />
+                            <div style={{ minWidth: 0 }}>
+                              <button
+                                type="button"
+                                className="users-name-button"
+                                onClick={() => openEdit(u)}
+                                title="Open details"
+                              >
+                                {u.FullName}
+                              </button>
+                              <span className="users-meta">
+                                @{u.UserName} &middot; {u.Email}
+                              </span>
+                            </div>
                           </div>
-                          <div
-                            style={{
-                              fontSize: "0.78rem",
-                              color: "var(--text-muted)",
-                              fontWeight: 600,
-                            }}
-                          >
-                            @{u.UserName}
+                        </td>
+                        <td>{roleBadge(u.role)}</td>
+                        <td>
+                          {accountStatusBadge(u)}
+                          <ReviewedLine user={u} />
+                        </td>
+                        <td style={{ textAlign: "right" }}>
+                          <div className="users-actions">
+                            {link && (
+                              <button
+                                type="button"
+                                className="users-row-action"
+                                onClick={() => openLinkModal(u, link.type)}
+                              >
+                                <i className="fa-solid fa-link" aria-hidden="true" /> {link.label}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="users-row-action"
+                              onClick={() => openEdit(u)}
+                              aria-label={`Edit ${u.FullName || u.UserName || "user"}`}
+                            >
+                              <i className="fa-solid fa-pen" aria-hidden="true" /> Edit
+                            </button>
                           </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td
-                      style={{
-                        padding: "1rem 1.5rem",
-                        color: "var(--text-secondary)",
-                        fontWeight: 555,
-                      }}
-                    >
-                      {u.Email}
-                    </td>
-                    <td style={{ padding: "1rem 1.5rem" }}>
-                      {roleBadge(u.role)}
-                    </td>
-                    <td style={{ padding: "1rem 1.5rem" }}>
-                      {accountStatusBadge(u)}
-                      <ReviewedLine user={u} />
-                    </td>
-                    <td style={{ padding: "1rem 1.5rem", textAlign: "right" }}>
-                      <div
-                        style={{
-                          display: "inline-flex",
-                          gap: "0.5rem",
-                          flexWrap: "wrap",
-                          justifyContent: "flex-end",
-                        }}
-                      >
-                        {canManageConnections(u) && u.role === "parent" && (
-                          <button
-                            onClick={() => openLinkModal(u, "parent")}
-                            className="modal-btn"
-                            style={{
-                              padding: "0.4rem 0.8rem",
-                              fontSize: "0.8rem",
-                              width: "auto",
-                              background: "rgba(139,92,246,0.15)",
-                              color: "#8b5cf6",
-                              border: "1px solid #8b5cf666",
-                            }}
-                          >
-                            <i className="fa-solid fa-link" /> Link Student
-                          </button>
-                        )}
-                        {canManageConnections(u) && u.role === "instructor" && (
-                          <button
-                            onClick={() => openLinkModal(u, "instructor")}
-                            className="modal-btn"
-                            style={{
-                              padding: "0.4rem 0.8rem",
-                              fontSize: "0.8rem",
-                              width: "auto",
-                              background: "rgba(59,130,246,0.15)",
-                              color: "#3b82f6",
-                              border: "1px solid #3b82f666",
-                            }}
-                          >
-                            <i className="fa-solid fa-link" /> Assign Student
-                          </button>
-                        )}
-                        {canManageConnections(u) && u.role === "student" && (
-                          <button
-                            onClick={() => openLinkModal(u, "student")}
-                            className="modal-btn"
-                            style={{
-                              padding: "0.4rem 0.8rem",
-                              fontSize: "0.8rem",
-                              width: "auto",
-                              background: "rgba(16,185,129,0.15)",
-                              color: "#10b981",
-                              border: "1px solid #10b98166",
-                            }}
-                          >
-                            <i className="fa-solid fa-link" /> Manage Links
-                          </button>
-                        )}
-                        <button
-                          onClick={() => openEdit(u)}
-                          className="modal-btn modal-btn-info"
-                          style={{
-                            padding: "0.4rem 0.8rem",
-                            fontSize: "0.8rem",
-                            width: "auto",
-                          }}
-                        >
-                          <i className="fa-solid fa-pen" /> Edit
-                        </button>
-                        {u.isActive !== false && (
-                          <button
-                            onClick={() => setDeleteUser(u)}
-                            className="modal-btn modal-btn-danger"
-                            style={{
-                              padding: "0.4rem 0.8rem",
-                              fontSize: "0.8rem",
-                              width: "auto",
-                            }}
-                          >
-                            <i className="fa-solid fa-trash" /> Delete
-                          </button>
-                        )}
-                      </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                {!loading && filteredUsers.length === 0 && (
+                  <tr>
+                    <td colSpan="4">
+                      <EmptyUsers filtered={hasFilters} onClear={clearFilters} />
                     </td>
                   </tr>
-                );
-              })}
-            {!loading && users.length === 0 && (
-              <tr>
-                <td
-                  colSpan="5"
-                  style={{
-                    padding: "3rem",
-                    textAlign: "center",
-                    color: "var(--text-muted)",
-                    fontWeight: 600,
-                  }}
-                >
-                  <i
-                    className="fa-solid fa-folder-open"
-                    style={{
-                      fontSize: "2rem",
-                      display: "block",
-                      marginBottom: "0.5rem",
-                      color: "#a1a1aa",
-                    }}
-                  />
-                  No users found.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
       )}
 
-      {/* Users as cards — phones. Every column the table showed is still here,
-          stacked, with the row actions behind a menu so nothing overflows. */}
+      {/* ─── Phone cards ─── */}
       {isMobile && (
-        <div style={{ display: "grid", gap: "0.75rem" }}>
+        <div className="users-cards">
           {loading && (
-            <div
-              className="glass-panel"
-              style={{
-                borderRadius: "1rem",
-                padding: "2rem",
-                textAlign: "center",
-                color: "var(--text-muted)",
-                fontWeight: 600,
-              }}
-            >
-              Loading users...
+            <div className="users-card" aria-busy="true">
+              <span className="users-meta">Loading people&hellip;</span>
             </div>
           )}
 
-          {!loading && users.length === 0 && (
-            <div
-              className="glass-panel"
-              style={{
-                borderRadius: "1rem",
-                padding: "2.5rem 1rem",
-                textAlign: "center",
-                color: "var(--text-muted)",
-                fontWeight: 600,
-              }}
-            >
-              <i
-                className="fa-solid fa-folder-open"
-                style={{
-                  fontSize: "2rem",
-                  display: "block",
-                  marginBottom: "0.5rem",
-                  color: "#a1a1aa",
-                }}
-              />
-              No users found.
+          {!loading && filteredUsers.length === 0 && (
+            <div className="users-card">
+              <EmptyUsers filtered={hasFilters} onClear={clearFilters} />
             </div>
           )}
 
           {!loading &&
-            users.map((u) => {
-              const initials = (u.FullName || "U")
-                .split(" ")
-                .map((n) => n[0])
-                .join("")
-                .toUpperCase()
-                .slice(0, 2);
-              const avatarColor = roleAvatarBg[u.role] || "#10b981";
+            pagedUsers.map((u) => {
               const menuOpen = openMenuId === u._id;
-              const linkType =
-                canManageConnections(u) &&
-                ["parent", "instructor", "student"].includes(u.role)
-                  ? u.role
-                  : null;
-              const linkLabel = {
-                parent: "Link Student",
-                instructor: "Assign Student",
-                student: "Manage Links",
-              }[linkType];
-
+              const link = linkActionFor(u);
               return (
-                <div
-                  key={u._id}
-                  className="glass-panel"
-                  style={{
-                    borderRadius: "1rem",
-                    padding: "0.9rem 1rem",
-                    display: "grid",
-                    gap: "0.7rem",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: "0.75rem",
-                    }}
-                  >
-                    <div
-                      className="modal-profile-avatar"
-                      style={{
-                        width: "40px",
-                        height: "40px",
-                        fontSize: "0.9rem",
-                        borderRadius: "10px",
-                        background: avatarColor,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {initials}
-                    </div>
-
-                    {/* minWidth 0 so a long email wraps instead of forcing the
-                        row wider than the card. */}
+                <div key={u._id} className="users-card">
+                  <div className="users-card-top">
+                    <UserAvatar user={u} size={40} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div
-                        style={{
-                          fontWeight: 700,
-                          color: "var(--text-primary)",
-                          overflowWrap: "anywhere",
-                        }}
-                      >
-                        {u.FullName}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "0.78rem",
-                          color: "var(--text-muted)",
-                          fontWeight: 600,
-                        }}
-                      >
-                        @{u.UserName}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "0.82rem",
-                          color: "var(--text-secondary)",
-                          fontWeight: 555,
-                          marginTop: "0.3rem",
-                          overflowWrap: "anywhere",
-                        }}
-                      >
-                        {u.Email}
-                      </div>
-                    </div>
-
-                    <div data-user-menu style={{ flexShrink: 0 }}>
                       <button
                         type="button"
+                        className="users-name-button"
+                        onClick={() => openEdit(u)}
+                      >
+                        {u.FullName}
+                      </button>
+                      <span className="users-meta">@{u.UserName}</span>
+                      <span className="users-meta" style={{ color: "var(--text-secondary)" }}>
+                        {u.Email}
+                      </span>
+                    </div>
+                    <div data-user-menu>
+                      <button
+                        type="button"
+                        className="users-menu-button"
                         onClick={() => setOpenMenuId(menuOpen ? null : u._id)}
-                        className="modal-btn"
                         aria-label={`Actions for ${u.FullName}`}
                         aria-expanded={menuOpen}
-                        style={{
-                          width: "36px",
-                          height: "36px",
-                          padding: 0,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
                       >
-                        <i className="fa-solid fa-ellipsis-vertical" />
+                        <i className="fa-solid fa-ellipsis-vertical" aria-hidden="true" />
                       </button>
                     </div>
                   </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: "0.4rem",
-                      alignItems: "center",
-                    }}
-                  >
+                  <div className="users-card-badges">
                     {roleBadge(u.role)}
                     {accountStatusBadge(u)}
-                      <ReviewedLine user={u} />
                   </div>
+                  <ReviewedLine user={u} />
 
                   {menuOpen && (
-                    <div
-                      data-user-menu
-                      role="menu"
-                      style={{
-                        display: "grid",
-                        gap: "0.35rem",
-                        paddingTop: "0.7rem",
-                        borderTop: "1px solid var(--border-color)",
-                      }}
-                    >
-                      {linkType && (
+                    <div data-user-menu role="menu" className="users-card-menu">
+                      {link && (
                         <button
+                          type="button"
                           role="menuitem"
+                          className="users-row-action"
                           onClick={() => {
                             setOpenMenuId(null);
-                            openLinkModal(u, linkType);
+                            openLinkModal(u, link.type);
                           }}
-                          className="modal-btn"
-                          style={rowMenuItemStyle}
                         >
-                          <i className="fa-solid fa-link" /> {linkLabel}
+                          <i className="fa-solid fa-link" aria-hidden="true" /> {link.label}
                         </button>
                       )}
                       <button
+                        type="button"
                         role="menuitem"
+                        className="users-row-action"
                         onClick={() => {
                           setOpenMenuId(null);
                           openEdit(u);
                         }}
-                        className="modal-btn modal-btn-info"
-                        style={rowMenuItemStyle}
                       >
-                        <i className="fa-solid fa-pen" /> Edit
+                        <i className="fa-solid fa-pen" aria-hidden="true" /> Edit
                       </button>
                       {u.isActive !== false && (
                         <button
+                          type="button"
                           role="menuitem"
+                          className="users-row-action is-danger"
                           onClick={() => {
                             setOpenMenuId(null);
                             setDeleteUser(u);
                           }}
-                          className="modal-btn modal-btn-danger"
-                          style={rowMenuItemStyle}
                         >
-                          <i className="fa-solid fa-trash" /> Delete
+                          <i className="fa-solid fa-trash" aria-hidden="true" /> Deactivate
                         </button>
                       )}
                     </div>
@@ -1101,9 +957,9 @@ const UsersPage = () => {
         </div>
       )}
 
-      {!loading && users.length > 0 && (
+      {!loading && filteredUsers.length > 0 && (
         <Pagination
-          page={page}
+          page={currentPage}
           totalPages={totalPages}
           onPageChange={setPage}
           limit={limit}
@@ -1111,7 +967,7 @@ const UsersPage = () => {
             setLimit(n);
             setPage(1);
           }}
-          total={totalDocs}
+          total={filteredUsers.length}
         />
       )}
 
@@ -1324,6 +1180,24 @@ const UsersPage = () => {
               </>
             )}
           </button>
+          {/* Deactivating lives here rather than as a button on every table
+              row: it is rare and destructive, and it is confirmed in its own
+              dialog. */}
+          {editUser?.isActive !== false && (
+            <button
+              type="button"
+              className="modal-btn modal-btn-ghost"
+              style={{ marginTop: "0.75rem", color: "var(--error)" }}
+              onClick={() => {
+                const target = editUser;
+                setEditUser(null);
+                setFormError(null);
+                setDeleteUser(target);
+              }}
+            >
+              <i className="fa-solid fa-user-slash" /> Deactivate this account
+            </button>
+          )}
         </form>
       </Modal>
 
@@ -1331,7 +1205,7 @@ const UsersPage = () => {
       <Modal
         isOpen={!!deleteUser}
         onClose={() => setDeleteUser(null)}
-        title="Delete User"
+        title="Deactivate User"
         size="sm"
       >
         <div className="modal-warning-icon">

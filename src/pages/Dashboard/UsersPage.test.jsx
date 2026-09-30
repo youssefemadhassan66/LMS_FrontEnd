@@ -1,6 +1,6 @@
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import UsersPage from "./UsersPage";
@@ -54,11 +54,12 @@ describe("account approval UI", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: /pending account approvals/i,
+        name: /waiting for approval/i,
       }),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Mona Pending").length).toBeGreaterThan(0);
-    expect(screen.getByText("Pending approval")).toBeInTheDocument();
+    // Scoped to the table: the status filter also offers "Pending approval".
+    expect(within(screen.getByRole("table")).getByText("Pending approval")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /^approve$/i }));
 
@@ -108,7 +109,7 @@ describe("admin-set passwords", () => {
 
     await user.click(screen.getByRole("button", { name: /close dialog/i }));
 
-    await user.click((await screen.findAllByRole("button", { name: /^edit$/i }))[0]);
+    await user.click((await screen.findAllByRole("button", { name: /^edit /i }))[0]);
     expect(screen.getByPlaceholderText(/leave empty to keep/i)).toHaveAttribute("autocomplete", "new-password");
   });
 
@@ -116,7 +117,7 @@ describe("admin-set passwords", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click((await screen.findAllByRole("button", { name: /^edit$/i }))[0]);
+    await user.click((await screen.findAllByRole("button", { name: /^edit /i }))[0]);
     await user.click(screen.getByRole("button", { name: /save changes/i }));
 
     await waitFor(() => {
@@ -132,7 +133,7 @@ describe("admin-set passwords", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click((await screen.findAllByRole("button", { name: /^edit$/i }))[0]);
+    await user.click((await screen.findAllByRole("button", { name: /^edit /i }))[0]);
     await user.type(screen.getByPlaceholderText(/leave empty to keep/i), " test@1234 ");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
 
@@ -173,7 +174,7 @@ describe("account review provenance", () => {
   it("says nothing for an account still awaiting review", async () => {
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: /pending account approvals/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /waiting for approval/i })).toBeInTheDocument();
     expect(screen.queryByText(/Approved by/)).not.toBeInTheDocument();
   });
 });

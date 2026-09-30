@@ -109,9 +109,12 @@ const LeaderboardPage = () => {
   };
 
   return (
-    <div style={{ paddingBottom: user?.role === 'student' ? '90px' : '20px', position: 'relative' }}>
+    <div style={{ paddingBottom: '20px', position: 'relative' }}>
       <div style={{ marginBottom: '2rem' }}>
-        <h1 className="page-title">🏆 Leaderboard Hub</h1>
+        <h1 className="page-title">
+          <i className="fa-solid fa-trophy" aria-hidden="true" style={{ color: 'var(--warning)', marginRight: '0.6rem' }} />
+          Leaderboard
+        </h1>
         <p className="page-subtitle">Compete with your peers, solve coding challenges, and earn XP to rise to the top!</p>
       </div>
 
@@ -203,8 +206,9 @@ const LeaderboardPage = () => {
         </div>
       ) : leaderboard.length === 0 ? (
         <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center' }}>
-          <p style={{ fontSize: '2rem' }}>🏜️</p>
-          <p style={{ fontWeight: 700, color: 'var(--text-muted)' }}>No student records found matching this criteria.</p>
+          <i className="fa-solid fa-ranking-star" aria-hidden="true" style={{ fontSize: '2rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }} />
+          <p style={{ fontWeight: 700, margin: '0 0 0.25rem' }}>No rankings yet</p>
+          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Try another period or grade, or check back once students have earned XP.</p>
         </div>
       ) : (
         <>
@@ -295,7 +299,7 @@ const LeaderboardPage = () => {
                         {getLeaderboardMetricValue(student)}
                       </span>
                       <span style={{ fontSize: '0.68rem', opacity: 0.8, fontWeight: 700, marginTop: '4px' }}>
-                        🏆 {student.badgesCount || 0} Badges
+                        <i className="fa-solid fa-medal" aria-hidden="true" /> {student.badgesCount || 0} Badges
                       </span>
                     </div>
                   </div>
@@ -391,25 +395,28 @@ const LeaderboardPage = () => {
 
       {/* 📌 Sticky User Rank Bar (Students only) */}
       {user?.role === 'student' && myRank && (
+        // Sticky inside the content column rather than fixed to the window:
+        // the fixed version assumed a 260px sidebar and slid underneath it
+        // (and under the collapsed one), covering Log out.
         <div style={{
-          position: 'fixed',
-          bottom: 0,
-          left: '260px', // matches main layout sidebar offset (if side is open, fallback is fine since the wrapper handles width)
-          right: 0,
+          position: 'sticky',
+          bottom: '1rem',
+          marginTop: '1.5rem',
           background: 'var(--card-bg)',
-          borderTop: '3px solid var(--border-color)',
-          padding: '0.75rem 2rem',
+          border: 'var(--card-border)',
+          borderRadius: 'var(--radius-md)',
+          padding: '0.75rem 1.5rem',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          boxShadow: '0 -4px 15px rgba(0,0,0,0.08)',
-          zIndex: 998,
+          boxShadow: 'var(--shadow-sm)',
+          zIndex: 20,
           fontFamily: 'var(--font-body)'
         }}
         className="sticky-rank-bar"
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <span style={{ fontSize: '1.5rem' }}>🎯</span>
+            <i className="fa-solid fa-bullseye" aria-hidden="true" style={{ fontSize: '1.4rem', color: 'var(--brand-primary)' }} />
             <div>
               <p style={{ margin: 0, fontSize: '0.72rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)' }}>Your Rank</p>
               <p style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>#{myRank.rank || '—'}</p>
@@ -424,13 +431,6 @@ const LeaderboardPage = () => {
         </div>
       )}
 
-      <style>{`
-        @media (max-width: 1024px) {
-          .sticky-rank-bar {
-            left: 0 !important;
-          }
-        }
-      `}</style>
     </div>
   );
 };

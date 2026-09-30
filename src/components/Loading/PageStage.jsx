@@ -13,8 +13,17 @@ const MIN_VISIBLE = 300;    // once shown, long enough to read rather than flash
 const QUIET = 100;          // no requests for this long counts as settled (covers chained requests)
 const REQUEST_WINDOW = 1500; // later requests (polling, sockets) are not the page load
 const MAX_WAIT = 8000;      // a slow endpoint must never hide the page for good
+const ENTER_MS = 700;       // how long entrance animations may run after reveal
 
 const StageContext = createContext(null);
+
+// True once the page is on screen. Entrance motion (count-ups, bars filling)
+// waits for this: anything that animated on mount would have finished while
+// the page was still hidden behind the loader.
+const RevealContext = createContext(true);
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const usePageRevealed = () => useContext(RevealContext);
 
 // Suspense fallback. Renders nothing itself (the stage draws the loader), but
 // tells the stage the page's code is still downloading.
@@ -38,6 +47,7 @@ const ChunkPending = () => {
 const PageStage = ({ pathname, label, children }) => {
   const [readyPath, setReadyPath] = useState(null);
   const [loaderPath, setLoaderPath] = useState(null);
+  const [enteringPath, setEnteringPath] = useState(null);
   const suspended = useRef(0);
   const recheck = useRef(() => {});
 
@@ -61,6 +71,7 @@ const PageStage = ({ pathname, label, children }) => {
     let lastBusyAt = startedAt;
     let finished = false;
     let settleTimer = null;
+    let enterTimer = null;
 
     const busy = () =>
       suspended.current > 0 || pendingBetween(startedAt - 50, startedAt + REQUEST_WINDOW) > 0;
@@ -77,6 +88,10 @@ const PageStage = ({ pathname, label, children }) => {
       if (finished) return;
       stop();
       setReadyPath(pathname);
+      // Entrance animations are scoped to this phase, so they play once as the
+      // page appears, not again when a filter re-renders a list.
+      setEnteringPath(pathname);
+      enterTimer = setTimeout(() => setEnteringPath(null), ENTER_MS);
     };
 
     // Only a page that is genuinely still loading gets the loader. One that is
@@ -116,15 +131,17 @@ const PageStage = ({ pathname, label, children }) => {
 
     return () => {
       recheck.current = () => {};
+      clearTimeout(enterTimer);
       if (!finished) stop();
     };
   }, [pathname]);
 
   const pending = readyPath !== pathname;
   const showLoader = pending && loaderPath === pathname;
+  const entering = !pending && enteringPath === pathname;
 
   return (
-    <div className={`page-stage${pending ? ' is-pending' : ''}`}>
+    <div className={`page-stage${pending ? ' is-pending' : ''}${entering ? ' is-entering' : ''}`}>
       {showLoader && (
         <div className="page-stage__overlay">
           <PageLoader label={label} />
@@ -132,9 +149,11 @@ const PageStage = ({ pathname, label, children }) => {
       )}
       <div className="page-stage__content" inert={pending || undefined}>
         <StageContext.Provider value={stage}>
-          <Suspense key={pathname} fallback={<ChunkPending />}>
-            {children}
-          </Suspense>
+          <RevealContext.Provider value={!pending}>
+            <Suspense key={pathname} fallback={<ChunkPending />}>
+              {children}
+            </Suspense>
+          </RevealContext.Provider>
         </StageContext.Provider>
       </div>
     </div>
