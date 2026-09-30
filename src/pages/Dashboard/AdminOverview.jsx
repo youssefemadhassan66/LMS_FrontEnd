@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import NextSessionCountdown from '../../components/NextSessionCountdown/NextSessionCountdown';
 import { SkeletonStatsGrid, SkeletonRow } from '../../components/Skeleton/Skeleton';
 import './DashboardOverview.css';
+import CountUp from '../../components/Motion/CountUp';
 
 /* ── Role badge ── */
 const RoleBadge = ({ role }) => {
@@ -38,7 +39,7 @@ const StatCard = ({ icon, iconBg, iconColor, value, label, loading, accent }) =>
       <i className={icon} />
     </div>
     <div className="stat-info">
-      <h3>{loading ? <span style={{ opacity: 0.4 }}>—</span> : value}</h3>
+      <h3>{loading ? <span style={{ opacity: 0.4 }}>—</span> : <CountUp value={value} />}</h3>
       <p>{label}</p>
     </div>
   </div>
@@ -161,10 +162,13 @@ const AdminOverview = () => {
             <i className="fa-solid fa-chart-line" style={{ color: '#10b981', marginRight: '0.5rem' }} />
             Platform Task Completion
           </h2>
+          {/* Progress is not a fault: a low share of finished tasks mid-term is
+              normal, so it is shown in the brand colour, not red or amber.
+              Green is kept for "nearly done". */}
           <span style={{
             padding: '0.2rem 0.7rem',
-            background: completionRate >= 75 ? 'rgba(16,185,129,0.12)' : completionRate >= 40 ? 'rgba(245,158,11,0.12)' : 'rgba(239,68,68,0.12)',
-            color: completionRate >= 75 ? '#10b981' : completionRate >= 40 ? '#f59e0b' : '#ef4444',
+            background: completionRate >= 75 ? 'rgba(16,185,129,0.12)' : 'var(--brand-light)',
+            color: completionRate >= 75 ? 'var(--success)' : 'var(--brand-primary)',
             border: '2px solid var(--border-color)',
             borderRadius: 'var(--radius-sm)',
             fontSize: '0.78rem',
@@ -174,7 +178,7 @@ const AdminOverview = () => {
         <div className="progress-bar-container">
           <div className="progress-bar" style={{
             width: `${completionRate}%`,
-            background: completionRate >= 75 ? '#10b981' : completionRate >= 40 ? '#f59e0b' : '#ef4444',
+            background: completionRate >= 75 ? 'var(--success)' : 'var(--brand-primary)',
           }} />
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>

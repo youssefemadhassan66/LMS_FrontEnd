@@ -3,6 +3,7 @@ import useFetchData from '../../hooks/useFetchData';
 import { useAuth } from '../../context/AuthContext';
 import NextSessionCountdown from '../../components/NextSessionCountdown/NextSessionCountdown';
 import './DashboardOverview.css';
+import CountUp from '../../components/Motion/CountUp';
 
 const InstructorOverview = () => {
   const { user } = useAuth();
@@ -49,14 +50,14 @@ const InstructorOverview = () => {
         <div className="stat-card">
           <div className="stat-icon" style={{ background: 'var(--accent-yellow)' }}><i className="fa-solid fa-calendar-days" /></div>
           <div className="stat-info">
-            <h3>{sessionsLoading ? '...' : sessionList.length}</h3>
+            <h3><CountUp value={sessionsLoading ? '...' : sessionList.length} /></h3>
             <p>Total Sessions</p>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon" style={{ background: 'var(--accent-peach)' }}><i className="fa-solid fa-pen-to-square" /></div>
           <div className="stat-info">
-            <h3>{tasksLoading ? '...' : taskList.length}</h3>
+            <h3><CountUp value={tasksLoading ? '...' : taskList.length} /></h3>
             <p>Tasks Assigned</p>
           </div>
         </div>
@@ -70,7 +71,7 @@ const InstructorOverview = () => {
         <div className="stat-card">
           <div className="stat-icon" style={{ background: 'var(--accent-orange)' }}><i className="fa-solid fa-chart-line" /></div>
           <div className="stat-info">
-            <h3>{tasksLoading ? '...' : `${completionRate}%`}</h3>
+            <h3><CountUp value={tasksLoading ? '...' : completionRate} suffix={tasksLoading ? '' : '%'} /></h3>
             <p>Task Completion</p>
           </div>
         </div>
@@ -88,21 +89,21 @@ const InstructorOverview = () => {
         <div className="stat-card">
           <div className="stat-icon" style={{ background: 'var(--accent-yellow)' }}><i className="fa-solid fa-circle-check" /></div>
           <div className="stat-info">
-            <h3>{tasksLoading ? '...' : completedTasks.length}</h3>
+            <h3><CountUp value={tasksLoading ? '...' : completedTasks.length} /></h3>
             <p>Completed Tasks</p>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon" style={{ background: 'var(--accent-orange)' }}><i className="fa-solid fa-hourglass-half" /></div>
           <div className="stat-info">
-            <h3>{tasksLoading ? '...' : pendingTasks.length}</h3>
+            <h3><CountUp value={tasksLoading ? '...' : pendingTasks.length} /></h3>
             <p>Pending Tasks</p>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon" style={{ background: 'var(--accent-peach)' }}><i className="fa-solid fa-book-open" /></div>
           <div className="stat-info">
-            <h3>{reviewsLoading ? '...' : reviewList.length}</h3>
+            <h3><CountUp value={reviewsLoading ? '...' : reviewList.length} /></h3>
             <p>Reviews Given</p>
           </div>
         </div>

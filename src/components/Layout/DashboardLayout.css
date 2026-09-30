@@ -20,7 +20,7 @@
   width: 260px;
   background: var(--card-bg);
   border: var(--card-border);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
   border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
@@ -108,11 +108,12 @@
 
 /* ─── Navigation ─── */
 .sidebar-nav {
+  position: relative;
   flex: 1;
   padding: 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.125rem;
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -121,11 +122,14 @@
   display: flex;
   align-items: center;
   gap: 0.85rem;
-  padding: 0.7rem 1rem;
+  /* 40px rows: the admin menu (18 items) fits a laptop screen without
+     scrolling, where 58px rows showed only 11 of them. */
+  padding: 0.55rem 0.85rem;
+  min-height: 40px;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   text-decoration: none;
   transition: all 0.15s ease;
   white-space: nowrap;
@@ -137,24 +141,66 @@
   font-family: var(--font-body);
 }
 
+/* Navigation is scanned constantly, so hover and the current page are shown
+   with fill alone. Borders, offset shadows and a nudge on every row made the
+   whole menu shift under the pointer. */
 .nav-item:hover {
   background: var(--bg-tertiary);
   color: var(--text-primary);
-  border-color: var(--border-color);
-  box-shadow: 2px 2px 0 var(--shadow-color);
-  transform: translate(-1px, -1px);
 }
 
-.nav-item.active {
-  background: var(--brand-primary);
+.nav-item:active {
+  transform: scale(0.98);
+}
+
+/* The active fill is drawn by .nav-indicator underneath the links, so it can
+   glide between them. Links sit above it. */
+.sidebar-nav .nav-item {
+  position: relative;
+  z-index: 1;
+}
+
+.sidebar-nav .nav-item.active {
+  background: transparent;
   color: #fff;
-  border-color: var(--border-color);
-  box-shadow: var(--shadow-sm);
-  transform: translate(-1px, -1px);
+}
+
+.nav-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  border-radius: var(--radius-sm);
+  background: var(--brand-primary);
+  box-shadow: 0 6px 16px -8px var(--brand-primary);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.nav-indicator.is-ready {
+  transition:
+    transform 0.32s cubic-bezier(0.25, 1, 0.5, 1),
+    height 0.32s cubic-bezier(0.25, 1, 0.5, 1),
+    width 0.2s ease,
+    opacity 0.15s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-indicator.is-ready {
+    transition: none;
+  }
+  .nav-item:active {
+    transform: none;
+  }
+}
+
+.nav-item:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
 }
 
 .nav-item .icon {
-  font-size: 1.1rem;
+  font-size: 1rem;
   flex-shrink: 0;
   width: 20px;
   text-align: center;
@@ -205,7 +251,8 @@
 /* ─── Header ─── */
 .dashboard-header {
   margin: 1rem 1rem 0;
-  padding: 0.75rem 1.25rem;
+  padding: 0.5rem 0.75rem 0.5rem 1.25rem;
+  min-height: 56px;
   background: var(--card-bg);
   border: var(--card-border);
   box-shadow: var(--shadow-sm);
@@ -229,13 +276,36 @@
 
 .header-left h3 {
   margin: 0;
-  font-family: var(--font-heading);
-  font-weight: 400;
-  font-size: 1.1rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.95rem;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* "Admin Panel / Tasks": the portal is context, the page is the point. */
+.header-left .header-portal,
+.header-left .header-sep {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.header-left .header-page {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 600px) {
+  .header-left .header-portal,
+  .header-left .header-sep {
+    display: none;
+  }
 }
 
 /* Mobile hamburger — hidden on desktop */
@@ -500,5 +570,26 @@
 @media (max-width: 400px) {
   .header-right {
     gap: 0.4rem;
+  }
+}
+
+/* ─── Hover on large panels ───
+   .glass-panel lifts on hover everywhere. On a dashboard the panels are whole
+   tables and page sections, so the page itself jumped under the pointer. Only
+   things you can act on (stat cards, buttons, links) keep a hover response. */
+.dashboard-content .glass-panel:hover {
+  transform: none;
+  box-shadow: var(--shadow-md);
+}
+
+.users-row-action:active,
+.users-role-tab:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .users-row-action:active,
+  .users-role-tab:active {
+    transform: none;
   }
 }

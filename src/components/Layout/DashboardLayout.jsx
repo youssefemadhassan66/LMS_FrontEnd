@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation, useNavigationType } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -134,6 +134,40 @@ const DashboardLayout = () => {
   // idle, so a click only has to wait for data.
   useEffect(() => preloadDashboardPages(navItems.map((item) => item.to)), [navItems]);
 
+  // One highlight that glides to the active link, instead of the fill jumping
+  // from one row to the next. Positioned by writing to the DOM directly: it is
+  // pure presentation, and state here would re-render the whole layout on
+  // every navigation and resize.
+  const navRef = useRef(null);
+  const indicatorRef = useRef(null);
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    const indicator = indicatorRef.current;
+    if (!nav || !indicator) return undefined;
+
+    const place = () => {
+      const active = nav.querySelector('.nav-item.active');
+      if (!active) {
+        indicator.style.opacity = '0';
+        return;
+      }
+      indicator.style.opacity = '1';
+      indicator.style.transform = `translateY(${active.offsetTop}px)`;
+      indicator.style.height = `${active.offsetHeight}px`;
+      indicator.style.left = `${active.offsetLeft}px`;
+      indicator.style.width = `${active.offsetWidth}px`;
+    };
+
+    place();
+    // The first placement must not slide in from the top of the menu.
+    const frame = requestAnimationFrame(() => indicator.classList.add('is-ready'));
+    window.addEventListener('resize', place);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('resize', place);
+    };
+  }, [location.pathname, sidebarOpen, navItems]);
+
   // A new page opens at the top. Back/forward is left to the browser, which
   // restores the previous position.
   const navigationType = useNavigationType();
@@ -184,7 +218,8 @@ const DashboardLayout = () => {
           </div>
         )}
 
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav" ref={navRef}>
+          <span className="nav-indicator" ref={indicatorRef} aria-hidden="true" />
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -217,7 +252,11 @@ const DashboardLayout = () => {
             >
               <i className="fa-solid fa-bars" />
             </button>
-            <h3>{portalLabel}</h3>
+            <h3>
+              <span className="header-portal">{portalLabel}</span>
+              <span className="header-sep" aria-hidden="true">/</span>
+              <span className="header-page">{pageLabel === 'your account' ? 'Account' : pageLabel}</span>
+            </h3>
           </div>
 
           <div className="header-right">

@@ -67,7 +67,10 @@
 [data-theme='dark'],
 [data-cosmic-space='1'] {
   /* =====================================================================
-     DARK THEME — Sleek Warm Zinc (Neo-Brutalist)
+     DARK THEME — Navy slate (Neo-Brutalist)
+     Every surface and border is tinted toward the navy page. Cards and borders
+     used to be neutral zinc (#27272A / #52525B), which read as a second colour
+     family laid over the blue background on every dashboard screen.
      ===================================================================== */
   
   /* Backgrounds */
@@ -98,8 +101,8 @@
   --info: #3B82F6;
 
   /* Borders & Shadows */
-  --border-color: #52525B;
-  --border-width: 3px;
+  --border-color: #334463;
+  --border-width: 2px;
   --shadow-color: #000000;
   --shadow-sm: 3px 3px 0px 0px var(--shadow-color);
   --shadow-md: 5px 5px 0px 0px var(--shadow-color);
@@ -107,7 +110,7 @@
   --shadow-hover: 6px 6px 0px 0px var(--brand-primary);
   
   /* Card Surfaces */
-  --card-bg: #27272A;
+  --card-bg: #162033;
   --card-border: var(--border-width) solid var(--border-color);
 
   /* Dot grid */

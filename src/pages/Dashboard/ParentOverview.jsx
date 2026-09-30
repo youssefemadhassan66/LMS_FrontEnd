@@ -6,6 +6,7 @@ import { useApiRequest } from '../../hooks/useApiRequest';
 import Modal from '../../components/Modal/Modal';
 import { SkeletonStatsGrid, SkeletonCardGrid } from '../../components/Skeleton/Skeleton';
 import './DashboardOverview.css';
+import CountUp from '../../components/Motion/CountUp';
 
 const ParentOverview = () => {
   const { user } = useAuth();
@@ -186,14 +187,14 @@ const ParentOverview = () => {
         <div className="stat-card">
           <div className="stat-icon" style={{ background: 'var(--accent-yellow)' }}><i className="fa-solid fa-children" /></div>
           <div className="stat-info">
-            <h3>{childrenList.length}</h3>
+            <h3><CountUp value={childrenList.length} /></h3>
             <p>Children</p>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon" style={{ background: 'var(--accent-peach)' }}><i className="fa-solid fa-list-check" /></div>
           <div className="stat-info">
-            <h3>{ts.totalTasks ?? '—'}</h3>
+            <h3><CountUp value={ts.totalTasks ?? '—'} /></h3>
             <p>Total Tasks</p>
           </div>
         </div>
@@ -207,7 +208,7 @@ const ParentOverview = () => {
         <div className="stat-card">
           <div className="stat-icon" style={{ background: 'var(--brand-primary)', color: '#FFFFFF' }}><i className="fa-solid fa-star" /></div>
           <div className="stat-info">
-            <h3>{rs.avgOverall !== undefined ? rs.avgOverall.toFixed(1) : '—'}</h3>
+            <h3><CountUp value={rs.avgOverall !== undefined ? rs.avgOverall.toFixed(1) : '—'} /></h3>
             <p>Avg Rating</p>
           </div>
         </div>
@@ -218,28 +219,28 @@ const ParentOverview = () => {
         <div className="stat-card">
           <div className="stat-icon" style={{ background: 'var(--accent-rose)' }}><i className="fa-solid fa-file-lines" /></div>
           <div className="stat-info">
-            <h3>{ss.totalSubmissions ?? '—'}</h3>
+            <h3><CountUp value={ss.totalSubmissions ?? '—'} /></h3>
             <p>Submissions</p>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon" style={{ background: 'var(--accent-yellow)' }}><i className="fa-solid fa-inbox" /></div>
           <div className="stat-info">
-            <h3>{ss.reviewed ?? '—'}</h3>
+            <h3><CountUp value={ss.reviewed ?? '—'} /></h3>
             <p>Reviewed</p>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon" style={{ background: 'var(--accent-orange)' }}><i className="fa-solid fa-hourglass-half" /></div>
           <div className="stat-info">
-            <h3>{ts.pendingTasks ?? '—'}</h3>
+            <h3><CountUp value={ts.pendingTasks ?? '—'} /></h3>
             <p>Pending Tasks</p>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon" style={{ background: 'var(--brand-primary)', color: '#FFFFFF' }}><i className="fa-solid fa-triangle-exclamation" /></div>
           <div className="stat-info">
-            <h3>{ss.late ?? '—'}</h3>
+            <h3><CountUp value={ss.late ?? '—'} /></h3>
             <p>Late Submissions</p>
           </div>
         </div>
