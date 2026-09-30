@@ -11,6 +11,35 @@ import ProtectedRoute from "./components/ProtectedRoute";
 
 import LandingLayout from "./components/Layout/LandingLayout";
 import DashboardLayout from "./components/Layout/DashboardLayout";
+import {
+  DashboardIndex,
+  SessionsPage,
+  TasksPage,
+  SubmissionsPage,
+  ReviewsPage,
+  ExternalCoursesPage,
+  UsersPage,
+  StudentProfilesPage,
+  ChildDetailsPage,
+  ProgressPage,
+  ExamsPage,
+  MessagesPage,
+  ChannelsPage,
+  AnnouncementsPage,
+  AuditLogsPage,
+  AccountProfilePage,
+  WeeklySchedulePage,
+  LeaderboardPage,
+  ChallengesPage,
+  InstructorChallengesPage,
+  NotificationsPage,
+  LessonViewPage,
+  AchievementsPage,
+  CanvasPage,
+  CanvasBoardPage,
+} from "./routes/dashboardPages";
+import { SocketProvider } from "./context/SocketContext";
+import PageLoader from "./components/Loading/PageLoader";
 
 /* Every route is code-split. Loading all thirty pages (plus three.js, recharts
    and socket.io) up front was a ~1.1 MB single chunk that every visitor paid
@@ -25,39 +54,10 @@ const Contact = lazy(() => import("./pages/Contact"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Unauthorized = lazy(() => import("./pages/Unauthorized"));
 const Error403 = lazy(() => import("./pages/Error403"));
-const DashboardIndex = lazy(() => import("./pages/Dashboard/DashboardIndex"));
-const SessionsPage = lazy(() => import("./pages/Dashboard/SessionsPage"));
-const TasksPage = lazy(() => import("./pages/Dashboard/TasksPage"));
-const SubmissionsPage = lazy(() => import("./pages/Dashboard/SubmissionsPage"));
-const ReviewsPage = lazy(() => import("./pages/Dashboard/ReviewsPage"));
-const ExternalCoursesPage = lazy(() => import("./pages/Dashboard/ExternalCoursesPage"));
-const UsersPage = lazy(() => import("./pages/Dashboard/UsersPage"));
-const StudentProfilesPage = lazy(() => import("./pages/Dashboard/StudentProfilesPage"));
-const ChildDetailsPage = lazy(() => import("./pages/Dashboard/ChildDetailsPage"));
-const ProgressPage = lazy(() => import("./pages/Dashboard/ProgressPage"));
-const ExamsPage = lazy(() => import("./pages/Dashboard/ExamsPage"));
-const MessagesPage = lazy(() => import("./pages/Dashboard/MessagesPage"));
-const ChannelsPage = lazy(() => import("./pages/Dashboard/ChannelsPage"));
-const AnnouncementsPage = lazy(() => import("./pages/Dashboard/AnnouncementsPage"));
-const AuditLogsPage = lazy(() => import("./pages/Dashboard/AuditLogsPage"));
-const AccountProfilePage = lazy(() => import("./pages/Dashboard/AccountProfilePage"));
-const WeeklySchedulePage = lazy(() => import("./pages/Dashboard/WeeklySchedulePage"));
-const LeaderboardPage = lazy(() => import("./pages/Dashboard/LeaderboardPage"));
-const ChallengesPage = lazy(() => import("./pages/Dashboard/ChallengesPage"));
-const InstructorChallengesPage = lazy(() => import("./pages/Dashboard/InstructorChallengesPage"));
-const NotificationsPage = lazy(() => import("./pages/Dashboard/NotificationsPage"));
-const LessonViewPage = lazy(() => import("./pages/Dashboard/LessonViewPage"));
-const AchievementsPage = lazy(() => import("./pages/Dashboard/AchievementsPage"));
-const CanvasPage = lazy(() => import("./pages/Dashboard/CanvasPage"));
-const CanvasBoardPage = lazy(() => import("./pages/Dashboard/CanvasBoardPage"));
-import { SocketProvider } from "./context/SocketContext";
 
-const RouteFallback = () => (
-  <div className="route-fallback" role="status" aria-live="polite">
-    <span className="route-fallback-spinner" aria-hidden="true" />
-    <span className="sr-only">Loading…</span>
-  </div>
-);
+// Shown while a page outside the dashboard (landing, auth, error pages) is
+// still downloading. Dashboard pages have their own loader inside the layout.
+const RouteFallback = () => <PageLoader fullScreen />;
 
 function App() {
   return (

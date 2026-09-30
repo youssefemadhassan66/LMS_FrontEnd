@@ -90,8 +90,10 @@ const TasksPage = () => {
       const seen = new Set();
       const students = [];
 
-      // Fetch student profiles
-      const profileRes = await request('/api/v1/StudentProfile?limit=200').catch(() => null);
+      // Fetch student profiles. /all is the list route (the bare collection
+      // path has no GET and 404'd, leaving only students who had a session);
+      // for an instructor it is already scoped to their assigned students.
+      const profileRes = await request('/api/v1/StudentProfile/all?limit=200').catch(() => null);
       const allProfiles = profileRes?.data?.docs || profileRes?.data?.profiles || profileRes?.data || [];
       if (Array.isArray(allProfiles)) {
         allProfiles.forEach(p => {

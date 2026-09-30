@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { buildApiUrl } from '../utils/apiUrl';
 import { sanitizeErrorMessage } from '../utils/errorSanitizer';
+import { beginRequest } from '../utils/requestTracker';
 
 const useFetchData = (endpoint, options = {}) => {
   const { ensureValidToken, refreshToken } = useAuth();
@@ -28,6 +29,8 @@ const useFetchData = (endpoint, options = {}) => {
       }
     }
 
+    // Registered before the token check, which can itself hit the network.
+    const endRequest = beginRequest();
     try {
       setLoading(true);
       setError(null);
@@ -84,6 +87,7 @@ const useFetchData = (endpoint, options = {}) => {
         }
       }
     } finally {
+      endRequest();
       if (isMountedRef.current) {
         setLoading(false);
       }
