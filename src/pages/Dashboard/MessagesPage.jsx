@@ -171,6 +171,7 @@ const MessagesPage = () => {
       if (d && typeof d === 'object') {
         if (Array.isArray(d.docs)) return d.docs;
         if (Array.isArray(d.users)) return d.users;
+        if (Array.isArray(d.profiles)) return d.profiles;
         if (Array.isArray(d.sessions)) return d.sessions;
         if (Array.isArray(d.tasks)) return d.tasks;
         if (Array.isArray(d.channels)) return d.channels;
@@ -196,7 +197,9 @@ const MessagesPage = () => {
         const [sessionsRes, tasksRes, profilesRes] = await Promise.allSettled([
           request('/api/v1/session?limit=500'),
           request('/api/v1/task?limit=500'),
-          request('/api/v1/studentProfile?limit=500'),
+          // /all is the list route; the bare collection path 404'd. Scoped to
+          // this instructor's assigned students by the backend.
+          request('/api/v1/StudentProfile/all?limit=500'),
         ]);
 
         if (sessionsRes.status === 'fulfilled') {
@@ -214,8 +217,8 @@ const MessagesPage = () => {
         if (profilesRes.status === 'fulfilled') {
           extractList(profilesRes.value).forEach(p => {
             if (p.user) addContact(p.user, 'student');
-            if (p.parent?.user) addContact(p.parent.user, 'parent');
-            else if (p.parent) addContact(p.parent, 'parent');
+            // Profiles carry a `parents` array of users.
+            (p.parents || []).forEach((parent) => addContact(parent, 'parent'));
           });
         }
       } else if (role === 'student') {

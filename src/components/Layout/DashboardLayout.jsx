@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
+import { Outlet, NavLink, useNavigate, useLocation, useNavigationType } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import NotificationBell from '../NotificationBell/NotificationBell';
@@ -8,6 +8,8 @@ import Logo from '../Logo/Logo';
 import { getAvatarUrl } from '../../utils/avatar';
 import GamificationWidget from '../Gamification/GamificationWidget';
 import useScrollReveal from '../../hooks/useScrollReveal';
+import PageStage from '../Loading/PageStage';
+import { preloadDashboardPages } from '../../routes/dashboardPages';
 import './DashboardLayout.css';
 import '../../pages/Dashboard/Dashboard.css';
 // Must load after DashboardLayout.css: it overrides inline styles on the
@@ -118,6 +120,27 @@ const DashboardLayout = () => {
   const avatarSrc = user?.avatar || avatarUrl;
   const userInitials = userName.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2) || 'U';
 
+  // Name shown on the loading screen: the sidebar label for this page, or the
+  // closest parent section (e.g. a child page under Tasks), or a neutral word.
+  const pageLabel = (() => {
+    const match = navItems
+      .filter((item) => location.pathname === item.to || location.pathname.startsWith(`${item.to}/`))
+      .sort((a, b) => b.to.length - a.to.length)[0];
+    if (location.pathname === '/dashboard/account') return 'your account';
+    return match ? match.label : 'page';
+  })();
+
+  // Warm the code for every page this role can reach, while the browser is
+  // idle, so a click only has to wait for data.
+  useEffect(() => preloadDashboardPages(navItems.map((item) => item.to)), [navItems]);
+
+  // A new page opens at the top. Back/forward is left to the browser, which
+  // restores the previous position.
+  const navigationType = useNavigationType();
+  useLayoutEffect(() => {
+    if (navigationType !== 'POP') window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname, navigationType]);
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
@@ -216,9 +239,9 @@ const DashboardLayout = () => {
         </header>
 
         <div className="dashboard-content">
-          <div key={location.pathname} className="page-animate">
+          <PageStage pathname={location.pathname} label={pageLabel}>
             <Outlet />
-          </div>
+          </PageStage>
         </div>
       </div>
 

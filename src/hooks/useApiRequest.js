@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { buildApiUrl } from '../utils/apiUrl';
 import { sanitizeErrorMessage } from '../utils/errorSanitizer';
+import { trackRequest } from '../utils/requestTracker';
 
 export const useApiRequest = () => {
   const { ensureValidToken, refreshToken, logout } = useAuth();
@@ -22,7 +23,7 @@ export const useApiRequest = () => {
     return new Error('Could not reach the server. Please try again.');
   }, [logout, navigate]);
 
-  const request = useCallback(async (url, method = 'GET', body = null) => {
+  const performRequest = useCallback(async (url, method = 'GET', body = null) => {
     // Ensure we have a valid (non-expired) token before making the request
     const isValid = await ensureValidToken();
     if (!isValid) {
@@ -74,6 +75,13 @@ export const useApiRequest = () => {
     
     return data;
   }, [ensureValidToken, refreshToken, endSession]);
+
+  // Registered with the request tracker so the dashboard's page loader can
+  // wait for a newly opened page's data instead of revealing its empty state.
+  const request = useCallback(
+    (url, method = 'GET', body = null) => trackRequest(performRequest(url, method, body)),
+    [performRequest],
+  );
 
   const requestFormData = useCallback(async (url, method = 'POST', formData = null) => {
     const isValid = await ensureValidToken();
