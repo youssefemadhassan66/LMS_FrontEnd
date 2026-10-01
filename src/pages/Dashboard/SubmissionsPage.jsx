@@ -2,10 +2,21 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useApiRequest } from '../../hooks/useApiRequest';
 import Pagination from '../../components/Pagination/Pagination';
+import Modal from '../../components/Modal/Modal';
+import ScalePicker from '../../components/ScalePicker/ScalePicker';
 import DateRangeFilter from '../../components/DateRangeFilter/DateRangeFilter';
 import { appendDateRange } from '../../utils/dateRangeParams';
 import { safeUrl } from '../../utils/safeUrl';
 import { SkeletonCardGrid } from '../../components/Skeleton/Skeleton';
+
+// The bands the old slider printed under its track: 0 Fair, 5 Good,
+// 7 Very good, 10 Full mark.
+const SCORE_CAPTIONS = Object.fromEntries(
+  Array.from({ length: 11 }, (_, score) => [
+    score,
+    score === 10 ? 'Full mark' : score >= 7 ? 'Very good' : score >= 5 ? 'Good' : 'Fair',
+  ]),
+);
 
 const statusStyles = {
   Completed: { bg: 'rgba(16,185,129,0.1)', color: 'var(--success)' },
@@ -401,150 +412,119 @@ const SubmissionsPage = () => {
       )}
 
       {/* UPDATE SUBMISSION MODAL */}
-      {updateTarget && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1000, padding: '1rem',
-        }} onClick={() => setUpdateTarget(null)}>
-          <div style={{
-            background: 'var(--card-bg)', border: '3px solid var(--border-color)',
-            borderRadius: 'var(--radius-md)', boxShadow: '6px 6px 0px 0px var(--shadow-color)',
-            padding: '1.75rem', width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto',
-          }} onClick={e => e.stopPropagation()}>
-            <h2 style={{ fontFamily: 'var(--font-heading)', fontWeight: 400, margin: '0 0 0.25rem' }}>
-              Update Submission
-            </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 0.5rem' }}>
-              {updateTarget.task?.title}
-            </p>
-            {updateTarget.task?.dueDate && (
-              <p style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--warning)', margin: '0 0 1.25rem' }}>
-                <i className="fa-solid fa-clock" /> Due: {new Date(updateTarget.task.dueDate).toLocaleString()}
-              </p>
-            )}
+      <Modal
+        isOpen={!!updateTarget}
+        onClose={() => setUpdateTarget(null)}
+        title="Update Submission"
+        subtitle={updateTarget?.task?.title}
+      >
+        {updateTarget?.task?.dueDate && (
+          <p className="modal-due">
+            <i className="fa-solid fa-clock" aria-hidden="true" /> Due {new Date(updateTarget.task.dueDate).toLocaleString()}
+          </p>
+        )}
 
-            <form onSubmit={handleUpdateSubmission}>
-              {updateError && <div className="modal-error" style={{ marginBottom: '1rem' }}>{updateError}</div>}
+        <form onSubmit={handleUpdateSubmission}>
+          {updateError && <div className="modal-error" style={{ marginBottom: '1rem' }}>{updateError}</div>}
 
-              <div className="modal-form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                  <label className="modal-label" style={{ margin: 0 }}>Submission Links</label>
+          <div className="modal-form-group">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+              <label className="modal-label" style={{ margin: 0 }}>Submission Links</label>
+              <button
+                type="button"
+                onClick={() => setUpdateLinks([...updateLinks, { name: '', url: '' }])}
+                className="modal-add-btn"
+              >+ Add Link</button>
+            </div>
+            {updateLinks.map((link, i) => (
+              <div key={i} className="modal-link-row">
+                <input
+                  className="modal-input"
+                  placeholder="Name (e.g., GitHub)"
+                  value={link.name}
+                  onChange={e => { const u = [...updateLinks]; u[i] = { ...u[i], name: e.target.value }; setUpdateLinks(u); }}
+                />
+                <input
+                  className="modal-input"
+                  style={{ flex: 2 }}
+                  placeholder="https://..."
+                  type="url"
+                  value={link.url}
+                  onChange={e => { const u = [...updateLinks]; u[i] = { ...u[i], url: e.target.value }; setUpdateLinks(u); }}
+                />
+                {updateLinks.length > 1 && (
                   <button
                     type="button"
-                    onClick={() => setUpdateLinks([...updateLinks, { name: '', url: '' }])}
-                    className="modal-add-btn"
-                  >+ Add Link</button>
-                </div>
-                {updateLinks.map((link, i) => (
-                  <div key={i} className="modal-link-row">
-                    <input
-                      className="modal-input"
-                      placeholder="Name (e.g., GitHub)"
-                      value={link.name}
-                      onChange={e => { const u = [...updateLinks]; u[i] = { ...u[i], name: e.target.value }; setUpdateLinks(u); }}
-                    />
-                    <input
-                      className="modal-input"
-                      style={{ flex: 2 }}
-                      placeholder="https://..."
-                      type="url"
-                      value={link.url}
-                      onChange={e => { const u = [...updateLinks]; u[i] = { ...u[i], url: e.target.value }; setUpdateLinks(u); }}
-                    />
-                    {updateLinks.length > 1 && (
-                      <button
-                        type="button"
-                        className="modal-link-remove"
-                        onClick={() => { const u = updateLinks.filter((_, idx) => idx !== i); setUpdateLinks(u.length ? u : [{ name: '', url: '' }]); }}
-                      >✕</button>
-                    )}
-                  </div>
-                ))}
+                    className="modal-link-remove"
+                    onClick={() => { const u = updateLinks.filter((_, idx) => idx !== i); setUpdateLinks(u.length ? u : [{ name: '', url: '' }]); }}
+                  >✕</button>
+                )}
               </div>
-
-              <div className="modal-form-group" style={{ marginTop: '1rem' }}>
-                <label className="modal-label">Notes (Optional)</label>
-                <textarea
-                  className="modal-textarea"
-                  placeholder="Any additional notes..."
-                  value={updateNote}
-                  onChange={e => setUpdateNote(e.target.value)}
-                  style={{ minHeight: '70px' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
-                <button type="button" className="modal-btn modal-btn-ghost" onClick={() => setUpdateTarget(null)}>
-                  Cancel
-                </button>
-                <button type="submit" disabled={updateLoading} className="modal-btn modal-btn-primary" style={{ flex: 1 }}>
-                  {updateLoading ? 'Saving...' : <><i className="fa-solid fa-floppy-disk" /> Save Update</>}
-                </button>
-              </div>
-            </form>
+            ))}
           </div>
-        </div>
-      )}
+
+          <div className="modal-form-group" style={{ marginTop: '1rem' }}>
+            <label className="modal-label">Notes (Optional)</label>
+            <textarea
+              className="modal-textarea"
+              placeholder="Any additional notes..."
+              value={updateNote}
+              onChange={e => setUpdateNote(e.target.value)}
+              style={{ minHeight: '70px' }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
+            <button type="button" className="modal-btn modal-btn-ghost" onClick={() => setUpdateTarget(null)}>
+              Cancel
+            </button>
+            <button type="submit" disabled={updateLoading} className="modal-btn modal-btn-primary" style={{ flex: 1 }}>
+              {updateLoading ? 'Saving...' : <><i className="fa-solid fa-floppy-disk" /> Save Update</>}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* REVIEW MODAL */}
-      {reviewTarget && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1000, padding: '1rem',
-        }} onClick={() => setReviewTarget(null)}>
-          <div style={{
-            background: 'var(--card-bg)', border: '3px solid var(--border-color)',
-            borderRadius: 'var(--radius-md)', boxShadow: '6px 6px 0px 0px var(--shadow-color)',
-            padding: '1.75rem', width: '100%', maxWidth: '460px',
-          }} onClick={e => e.stopPropagation()}>
-            <h2 style={{ fontFamily: 'var(--font-heading)', fontWeight: 400, margin: '0 0 0.3rem' }}>
-              Grade Submission
-            </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 1.5rem' }}>
-              {reviewTarget.task?.title}{reviewTarget.studentProfileId?.user?.FullName ? ` — ${reviewTarget.studentProfileId.user.FullName}` : ''}
-            </p>
+      <Modal
+        isOpen={!!reviewTarget}
+        onClose={() => setReviewTarget(null)}
+        title="Grade Submission"
+        size="sm"
+        subtitle={[reviewTarget?.task?.title, reviewTarget?.studentProfileId?.user?.FullName].filter(Boolean).join(' · ')}
+      >
+        <form onSubmit={handleReview}>
+          {reviewError && <div className="modal-error" style={{ marginBottom: '1rem' }}>{reviewError}</div>}
 
-            <form onSubmit={handleReview}>
-              {reviewError && <div className="modal-error" style={{ marginBottom: '1rem' }}>{reviewError}</div>}
+          <ScalePicker
+            label="Score"
+            value={reviewScore}
+            max={10}
+            captions={SCORE_CAPTIONS}
+            onChange={setReviewScore}
+          />
 
-              <div className="modal-form-group">
-                <label className="modal-label">Score: {reviewScore} / 10</label>
-                <input
-                  type="range" min="0" max="10" step="1"
-                  value={reviewScore}
-                  onChange={e => setReviewScore(Number(e.target.value))}
-                  style={{ width: '100%', accentColor: 'var(--brand-primary)', marginTop: '0.4rem' }}
-                />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                  <span>0 — Fair</span><span>5 — Good</span><span>7 — Very Good</span><span>10 — Full Mark</span>
-                </div>
-              </div>
-
-              <div className="modal-form-group" style={{ marginTop: '1rem' }}>
-                <label className="modal-label">Comment (optional)</label>
-                <textarea
-                  className="modal-textarea"
-                  placeholder="Feedback for the student..."
-                  value={reviewComment}
-                  onChange={e => setReviewComment(e.target.value)}
-                  style={{ minHeight: '80px' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
-                <button type="button" className="modal-btn modal-btn-ghost" onClick={() => setReviewTarget(null)}>
-                  Cancel
-                </button>
-                <button type="submit" disabled={reviewLoading} className="modal-btn modal-btn-primary" style={{ flex: 1 }}>
-                  {reviewLoading ? 'Saving...' : <><i className="fa-solid fa-floppy-disk" /> Save Grade</>}
-                </button>
-              </div>
-            </form>
+          <div className="modal-form-group" style={{ marginTop: '1rem' }}>
+            <label className="modal-label">Comment (optional)</label>
+            <textarea
+              className="modal-textarea"
+              placeholder="Feedback for the student..."
+              value={reviewComment}
+              onChange={e => setReviewComment(e.target.value)}
+              style={{ minHeight: '80px' }}
+            />
           </div>
-        </div>
-      )}
+
+          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
+            <button type="button" className="modal-btn modal-btn-ghost" onClick={() => setReviewTarget(null)}>
+              Cancel
+            </button>
+            <button type="submit" disabled={reviewLoading} className="modal-btn modal-btn-primary" style={{ flex: 1 }}>
+              {reviewLoading ? 'Saving...' : <><i className="fa-solid fa-floppy-disk" /> Save Grade</>}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

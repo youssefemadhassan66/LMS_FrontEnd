@@ -3,10 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useApiRequest } from '../../hooks/useApiRequest';
 import Modal from '../../components/Modal/Modal';
+import ScalePicker from '../../components/ScalePicker/ScalePicker';
 import Pagination from '../../components/Pagination/Pagination';
 import DateRangeFilter from '../../components/DateRangeFilter/DateRangeFilter';
 import { appendDateRange } from '../../utils/dateRangeParams';
 import { SkeletonCardGrid } from '../../components/Skeleton/Skeleton';
+
+const RATING_CAPTIONS = {
+  0: 'Not rated',
+  1: 'Poor',
+  2: 'Fair',
+  3: 'Good',
+  4: 'Very good',
+  5: 'Excellent',
+};
 
 const emptyReviewForm = {
   session: '',
@@ -166,18 +176,13 @@ const ReviewsPage = () => {
   );
 
   const ratingInput = (label, field) => (
-    <div className="modal-form-group">
-      <label className="modal-label">{label}: {formData[field]}/5</label>
-      <input
-        type="range"
-        min="0"
-        max="5"
-        step="1"
-        value={formData[field]}
-        onChange={e => setFormData({ ...formData, [field]: Number(e.target.value) })}
-        style={{ width: '100%', accentColor: 'var(--brand-primary)' }}
-      />
-    </div>
+    <ScalePicker
+      label={label}
+      value={formData[field]}
+      max={5}
+      captions={RATING_CAPTIONS}
+      onChange={(score) => setFormData((prev) => ({ ...prev, [field]: score }))}
+    />
   );
 
   return (
@@ -362,22 +367,19 @@ const ReviewsPage = () => {
       )}
 
       {/* EDIT REVIEW MODAL */}
-      <Modal isOpen={!!editReview} onClose={() => { setEditReview(null); setFormData(emptyReviewForm); }} title="Edit Session Review" size="lg">
+      <Modal isOpen={!!editReview} onClose={() => { setEditReview(null); setFormData(emptyReviewForm); }} title="Edit Session Review"
+        size="lg"
+        subtitle={[
+          editReview?.session?.title || editReview?.session,
+          editReview?.studentProfileId?.user?.FullName,
+        ].filter((part) => typeof part === 'string' && part).join(' · ')}
+      >
         <form onSubmit={handleUpdate}>
           {formError && <div className="modal-error">{formError}</div>}
-          <div className="modal-form-group">
-            <label className="modal-label">Session</label>
-            <input className="modal-input" disabled value={editReview?.session?.title || editReview?.session || ''} />
-          </div>
-          <div className="modal-form-group">
-            <label className="modal-label">Student</label>
-            <input className="modal-input" disabled value={editReview?.studentProfileId?.user?.FullName || editReview?.studentProfileId || ''} />
-          </div>
+          <div className="modal-section-label">Scores</div>
           <div className="modal-row modal-row-2">
             {ratingInput('Behavior', 'Behavior')}
             {ratingInput('Understanding', 'underStanding')}
-          </div>
-          <div className="modal-row modal-row-2">
             {ratingInput('Participation', 'participation')}
             {ratingInput('Coding', 'coding')}
           </div>
@@ -427,11 +429,10 @@ const ReviewsPage = () => {
               )}
             </div>
           </div>
+          <div className="modal-section-label">Scores</div>
           <div className="modal-row modal-row-2">
             {ratingInput('Behavior', 'Behavior')}
             {ratingInput('Understanding', 'underStanding')}
-          </div>
-          <div className="modal-row modal-row-2">
             {ratingInput('Participation', 'participation')}
             {ratingInput('Coding', 'coding')}
           </div>
