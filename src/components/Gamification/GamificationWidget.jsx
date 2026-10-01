@@ -77,7 +77,7 @@ const GamificationWidget = () => {
 
   if (loading) {
     return (
-      <div style={{
+      <div className="xp-widget is-loading" aria-hidden="true" style={{
         display: 'flex',
         alignItems: 'center',
         gap: '12px',
@@ -88,7 +88,7 @@ const GamificationWidget = () => {
         height: '40px',
         opacity: 0.7
       }}>
-        <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Loading Stats...</span>
+        <span style={{ fontSize: '0.8rem', fontWeight: 600 }}><i className="fa-solid fa-trophy" style={{ color: 'var(--text-muted)' }} /></span>
       </div>
     );
   }
@@ -100,7 +100,7 @@ const GamificationWidget = () => {
   const progressPercent = Math.min(100, Math.max(0, currentXPInLevel));
 
   return (
-    <div style={{
+    <div className="xp-widget" data-tour="xp" style={{
       display: 'flex',
       alignItems: 'center',
       gap: '16px',
@@ -128,7 +128,7 @@ const GamificationWidget = () => {
       </div>
 
       {/* XP Bar */}
-      <div style={{
+      <div className="xp-widget__bar" style={{
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
@@ -174,6 +174,7 @@ const GamificationWidget = () => {
 
       {/* Badges Indicator */}
       <div
+        className="xp-widget__badges"
         style={{
           display: 'flex',
           alignItems: 'center',

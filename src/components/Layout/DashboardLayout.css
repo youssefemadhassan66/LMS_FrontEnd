@@ -160,6 +160,30 @@
   z-index: 1;
 }
 
+/* Group headings in the sidebar ("My learning", "Talk", …). */
+.nav-section {
+  display: block;
+  padding: 0.85rem 0.85rem 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.nav-section:first-of-type { padding-top: 0.2rem; }
+
+/* Collapsed sidebar: a thin rule between groups instead of the heading. */
+.nav-section-rule {
+  display: block;
+  height: 1px;
+  margin: 0.45rem 0.6rem;
+  background: var(--border-color);
+  opacity: 0.6;
+}
+
 .sidebar-nav .nav-item.active {
   background: transparent;
   color: #fff;
@@ -566,11 +590,45 @@
   }
 }
 
+/* The notification bell's wrapper, which the guided tour points at. */
+.header-bell {
+  display: flex;
+}
+
+/* ── Phone header ──
+   A student's header carries the XP widget, help, bell, theme and profile.
+   At phone width the widget keeps only its level and streak, and the icon
+   buttons shrink, so the menu button and title are never pushed off. */
+@media (max-width: 600px) {
+  .header-right { gap: 0.4rem; }
+  .header-right .theme-toggle-icon,
+  .header-right .tour-help-btn {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    padding: 0;
+    font-size: 0.9rem;
+  }
+  .user-profile { padding: 0; }
+  .user-profile .avatar { width: 34px; height: 34px; }
+  .xp-widget {
+    gap: 8px !important;
+    padding: 4px 8px !important;
+    height: 34px !important;
+  }
+  .xp-widget__bar,
+  .xp-widget__badges { display: none !important; }
+  .toggle-sidebar-btn-mobile { width: 34px; height: 34px; }
+}
+
 /* ── Very small (≤400px) ── */
 @media (max-width: 400px) {
   .header-right {
-    gap: 0.4rem;
+    gap: 0.3rem;
   }
+  /* The widget keeps just the level; the streak is on the progress page. */
+  .xp-widget > :nth-child(3) { display: none !important; }
+  .header-left { gap: 0.5rem; }
 }
 
 /* ─── Hover on large panels ───
