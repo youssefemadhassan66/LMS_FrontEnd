@@ -9,6 +9,7 @@ import './Modal.css';
  * - Focus moves into the modal on open and is trapped via Tab/Shift+Tab
  * - Body scroll is locked while open
  * - Returns focus to the previously focused element on close
+ * - Fades out on close (see playExit)
  */
 const FOCUSABLE = [
   'a[href]',
@@ -19,7 +20,53 @@ const FOCUSABLE = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(', ');
 
-const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
+const EXIT_MS = 170;
+
+/**
+ * Plays the closing animation on a copy of the dialog.
+ *
+ * Once a modal closes, React has already removed it and its parent has usually
+ * cleared the data it showed, so the real dialog cannot stay up to animate.
+ * A static copy can: it is inert and hidden from assistive technology, and it
+ * removes itself when the animation ends. Browsers without the Web Animations
+ * API (and jsdom in tests) simply skip it.
+ */
+const playExit = (overlay, scrollTop) => {
+  if (!overlay || typeof overlay.animate !== 'function') return;
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+
+  const ghost = overlay.cloneNode(true);
+  // cloneNode copies attributes, not what the user typed or picked.
+  const sources = overlay.querySelectorAll('input, textarea, select');
+  ghost.querySelectorAll('input, textarea, select').forEach((field, i) => {
+    if (field.type === 'checkbox' || field.type === 'radio') field.checked = sources[i].checked;
+    else field.value = sources[i].value;
+  });
+  ghost.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
+  ghost.setAttribute('aria-hidden', 'true');
+  ghost.inert = true;
+  ghost.classList.add('is-closing');
+  const panel = ghost.querySelector('.modal-panel');
+  panel?.removeAttribute('role');
+  document.body.appendChild(ghost);
+  if (panel) panel.scrollTop = scrollTop;
+
+  const sheet = window.matchMedia?.('(max-width: 640px)').matches;
+  const options = { duration: EXIT_MS, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' };
+  ghost.animate([{ opacity: 1 }, { opacity: 0 }], options);
+  const out = panel?.animate(
+    sheet
+      ? [{ transform: 'none' }, { transform: 'translateY(40%)', opacity: 0 }]
+      : [{ transform: 'none' }, { transform: 'translateY(10px) scale(0.96)', opacity: 0 }],
+    options,
+  );
+  const remove = () => ghost.remove();
+  if (out?.finished) out.finished.then(remove, remove);
+  else setTimeout(remove, EXIT_MS);
+};
+
+const Modal = ({ isOpen, onClose, title, subtitle, children, size = 'md' }) => {
+  const overlayRef = useRef(null);
   const panelRef = useRef(null);
   const previouslyFocused = useRef(null);
 
@@ -59,6 +106,16 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
     };
 
     document.addEventListener('keydown', onKey);
+
+    // Held here rather than read from the refs on close: by then React has
+    // detached them. The panel's scroll position is lost with the layout, so
+    // it is tracked as the user scrolls.
+    const overlay = overlayRef.current;
+    const panelNode = panelRef.current;
+    let scrollTop = 0;
+    const onScroll = () => { scrollTop = panelNode.scrollTop; };
+    panelNode?.addEventListener('scroll', onScroll, { passive: true });
+
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
@@ -72,6 +129,8 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
 
     return () => {
       document.removeEventListener('keydown', onKey);
+      panelNode?.removeEventListener('scroll', onScroll);
+      playExit(overlay, scrollTop);
       document.body.style.overflow = prevOverflow;
       previouslyFocused.current?.focus?.();
     };
@@ -84,7 +143,7 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
   const sizeClass = `modal-${size}`;
 
   return createPortal(
-    <div className="modal-overlay" onClick={onClose}>
+    <div ref={overlayRef} className="modal-overlay" onClick={onClose}>
       <div
         ref={panelRef}
         className={`modal-panel ${sizeClass}`}
@@ -95,14 +154,17 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
         tabIndex={-1}
       >
         <div className="modal-header">
-          <h2 id={titleId}>{title}</h2>
+          <div className="modal-heading">
+            <h2 id={titleId}>{title}</h2>
+            {subtitle && <p className="modal-subtitle">{subtitle}</p>}
+          </div>
           <button
             className="modal-close-btn"
             onClick={onClose}
             aria-label="Close dialog"
             type="button"
           >
-            ✕
+            <i className="fa-solid fa-xmark" aria-hidden="true" />
           </button>
         </div>
         <div className="modal-body">

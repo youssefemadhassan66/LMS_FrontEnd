@@ -1,0 +1,163 @@
+/* ═══ SCALE PICKER ═══
+   A row of tappable score steps. The tone colour follows the chosen score. */
+
+.scale-picker {
+  --tone: var(--text-muted);
+  --tone-soft: color-mix(in srgb, var(--tone) 16%, transparent);
+  /* The tone pulled towards the text colour, so amber stays readable on a
+     light background. */
+  --tone-text: color-mix(in srgb, var(--tone) 72%, var(--text-primary));
+  margin: 0 0 1.15rem;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.scale-picker[data-tone='low']  { --tone: var(--error); }
+.scale-picker[data-tone='mid']  { --tone: var(--warning); }
+.scale-picker[data-tone='high'] { --tone: var(--success); }
+
+.scale-picker__legend {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0;
+  margin-bottom: 0.5rem;
+}
+
+.scale-picker__label {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.scale-picker__readout {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.15rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.scale-picker__readout strong {
+  display: inline-block;
+  font-size: 1rem;
+  color: var(--tone-text);
+  transition: color 0.2s ease;
+  animation: scaleReadoutPop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.scale-picker__readout em {
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 100px;
+  font-style: normal;
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: var(--tone-text);
+  background: var(--tone-soft);
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.scale-picker__steps {
+  display: grid;
+  grid-template-columns: repeat(var(--scale-steps), minmax(0, 1fr));
+  gap: 0.3rem;
+}
+
+.scale-picker__step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.35rem;
+  border-radius: 0.6rem;
+  border: 1.5px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color 0.22s ease,
+    border-color 0.22s ease,
+    color 0.22s ease,
+    transform 0.15s ease;
+  /* The fill sweeps left to right instead of every step changing at once. */
+  transition-delay: calc(var(--step-index) * 14ms);
+}
+
+.scale-picker__step input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.scale-picker__step:hover {
+  border-color: var(--tone);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+  transition-delay: 0s;
+}
+
+.scale-picker__step:active { transform: scale(0.94); }
+
+.scale-picker__step.is-filled {
+  background: var(--tone-soft);
+  border-color: color-mix(in srgb, var(--tone) 55%, transparent);
+  color: var(--tone-text);
+}
+
+.scale-picker__step.is-current {
+  background: var(--tone);
+  border-color: var(--tone);
+  color: #fff;
+  box-shadow: 0 6px 16px -6px var(--tone);
+  animation: scaleStepPop 0.34s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* White on amber is too faint; dark text reads in both themes. */
+.scale-picker[data-tone='mid'] .scale-picker__step.is-current { color: #1c1400; }
+
+/* Zero is "nothing yet", so the chosen zero stays neutral. */
+.scale-picker[data-tone='none'] .scale-picker__step.is-current {
+  background: var(--bg-tertiary);
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+.scale-picker__step:has(input:focus-visible) {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+@keyframes scaleStepPop {
+  0%   { transform: scale(0.86); }
+  100% { transform: scale(1); }
+}
+
+@keyframes scaleReadoutPop {
+  0%   { transform: translateY(4px) scale(0.8); opacity: 0.3; }
+  100% { transform: none; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scale-picker__step,
+  .scale-picker__readout strong {
+    transition-duration: 0.01ms;
+    transition-delay: 0s;
+    animation: none;
+  }
+  .scale-picker__step.is-current { animation: none; }
+}
