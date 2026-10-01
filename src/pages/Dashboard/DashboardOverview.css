@@ -513,8 +513,14 @@
 }
 
 @media (max-width: 400px) {
+  /* Two narrow cards a row beat eight full-width ones in a long column:
+     the icon moves above the number to make room. */
   .stats-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
+  }
+  .stat-card {
+    flex-direction: column;
+    align-items: flex-start;
   }
   .course-item {
     flex-direction: column;
@@ -532,4 +538,165 @@
   .task-status {
     margin-left: 0;
   }
+}
+/* ─── Quick actions ───
+   Big, plain-language shortcuts at the top of the student and parent home. */
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.quick-action {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-height: 72px;
+  padding: 0.9rem 1rem;
+  background: var(--card-bg);
+  border: var(--card-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: transform 0.18s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.18s cubic-bezier(0.25, 1, 0.5, 1), border-color 0.18s ease;
+}
+
+.quick-action:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--brand-primary);
+}
+
+.quick-action:active {
+  transform: translate(1px, 1px);
+  box-shadow: none;
+}
+
+.quick-action:focus-visible {
+  outline: 3px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+.quick-action__icon {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 1.1rem;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.quick-action:hover .quick-action__icon { transform: scale(1.08) rotate(-4deg); }
+
+.quick-action__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.quick-action__text strong {
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.quick-action__text small {
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-action__count {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 100px;
+  background: var(--error);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  border: 2px solid var(--card-bg);
+}
+
+.page-stage.is-entering .quick-action {
+  animation: statRise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.page-stage.is-entering .quick-action:nth-child(2) { animation-delay: 40ms; }
+.page-stage.is-entering .quick-action:nth-child(3) { animation-delay: 80ms; }
+.page-stage.is-entering .quick-action:nth-child(4) { animation-delay: 120ms; }
+
+/* ─── "More numbers" ─── */
+.more-stats {
+  margin-top: -0.5rem;
+}
+
+.more-stats > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.2rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.more-stats > summary::-webkit-details-marker { display: none; }
+
+.more-stats > summary::before {
+  /* A small chevron drawn with two borders. */
+  content: '';
+  width: 6px;
+  height: 6px;
+  margin: 0 0.1rem 0.2rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.2s ease, margin 0.2s ease;
+}
+
+.more-stats[open] > summary::before { transform: rotate(225deg); margin-bottom: -0.15rem; }
+.more-stats > summary:hover { color: var(--text-primary); }
+
+.more-stats[open] > .stats-grid {
+  margin-top: 0.6rem;
+  animation: statRise 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (max-width: 1024px) {
+  .quick-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 540px) {
+  .quick-actions { gap: 0.6rem; }
+  .quick-action {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.55rem;
+    padding: 0.85rem;
+  }
+  .quick-action__text small { white-space: normal; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-stage.is-entering .quick-action,
+  .more-stats[open] > .stats-grid { animation: none; }
+  .quick-action:hover .quick-action__icon { transform: none; }
 }

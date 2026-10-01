@@ -162,6 +162,7 @@ const ParentOverview = () => {
         </div>
         <button
           onClick={openLinkModal}
+          data-tour="link-child"
           style={{
             padding: '0.6rem 1.25rem',
             background: 'var(--brand-primary)',
@@ -182,73 +183,109 @@ const ParentOverview = () => {
         </button>
       </div>
 
-      {/* Aggregated Stats */}
-      <div className="stats-grid">
+      {/* Quick actions: what a parent usually wants, one tap away. */}
+      <nav className="quick-actions" aria-label="Quick actions" data-tour="quick-actions">
+        <Link to="/dashboard/progress" className="quick-action">
+          <span className="quick-action__icon" style={{ background: 'var(--brand-primary)' }}><i className="fa-solid fa-chart-line" /></span>
+          <span className="quick-action__text">
+            <strong>How they’re doing</strong>
+            <small>Progress and grades</small>
+          </span>
+        </Link>
+        <Link to="/dashboard/schedule" className="quick-action">
+          <span className="quick-action__icon" style={{ background: 'var(--success)' }}><i className="fa-solid fa-calendar-week" /></span>
+          <span className="quick-action__text">
+            <strong>Class schedule</strong>
+            <small>When their classes are</small>
+          </span>
+        </Link>
+        <Link to="/dashboard/tasks" className="quick-action">
+          <span className="quick-action__icon" style={{ background: 'var(--warning)' }}><i className="fa-solid fa-list-check" /></span>
+          <span className="quick-action__text">
+            <strong>Homework</strong>
+            <small>{ts.pendingTasks ? `${ts.pendingTasks} still to do` : 'Nothing waiting'}</small>
+          </span>
+          {ts.pendingTasks > 0 && <span className="quick-action__count">{ts.pendingTasks}</span>}
+        </Link>
+        <Link to="/dashboard/messages" className="quick-action">
+          <span className="quick-action__icon" style={{ background: 'var(--info)' }}><i className="fa-solid fa-comments" /></span>
+          <span className="quick-action__text">
+            <strong>Talk to a teacher</strong>
+            <small>Send a message</small>
+          </span>
+        </Link>
+      </nav>
+
+      {/* Key numbers */}
+      <div className="stats-grid" data-tour="stats">
         <div className="stat-card">
-          <div className="stat-icon" style={{ background: 'var(--accent-yellow)' }}><i className="fa-solid fa-children" /></div>
-          <div className="stat-info">
-            <h3><CountUp value={childrenList.length} /></h3>
-            <p>Children</p>
-          </div>
+           <div className="stat-icon" style={{ background: 'var(--accent-yellow)' }}><i className="fa-solid fa-children" /></div>
+           <div className="stat-info">
+              <h3><CountUp value={childrenList.length} /></h3>
+              <p>Children</p>
+           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon" style={{ background: 'var(--accent-peach)' }}><i className="fa-solid fa-list-check" /></div>
-          <div className="stat-info">
-            <h3><CountUp value={ts.totalTasks ?? '—'} /></h3>
-            <p>Total Tasks</p>
-          </div>
+           <div className="stat-icon" style={{ background: 'var(--accent-orange)' }}><i className="fa-solid fa-hourglass-half" /></div>
+           <div className="stat-info">
+              <h3><CountUp value={ts.pendingTasks ?? '—'} /></h3>
+              <p>Tasks to do</p>
+           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon" style={{ background: 'var(--accent-orange)' }}><i className="fa-solid fa-chart-line" /></div>
-          <div className="stat-info">
-            <h3>{ts.completionRate !== undefined ? `${Math.round(ts.completionRate)}%` : '—'}</h3>
-            <p>Completion Rate</p>
-          </div>
+           <div className="stat-icon" style={{ background: 'var(--accent-peach)' }}><i className="fa-solid fa-chart-line" /></div>
+           <div className="stat-info">
+              <h3><CountUp value={ts.completionRate !== undefined ? Math.round(ts.completionRate) : '—'} suffix={ts.completionRate !== undefined ? '%' : ''} /></h3>
+              <p>Completion rate</p>
+           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon" style={{ background: 'var(--brand-primary)', color: '#FFFFFF' }}><i className="fa-solid fa-star" /></div>
-          <div className="stat-info">
-            <h3><CountUp value={rs.avgOverall !== undefined ? rs.avgOverall.toFixed(1) : '—'} /></h3>
-            <p>Avg Rating</p>
-          </div>
+           <div className="stat-icon" style={{ background: 'var(--brand-primary)', color: '#FFFFFF' }}><i className="fa-solid fa-star" /></div>
+           <div className="stat-info">
+              <h3>{rs.avgOverall !== undefined ? rs.avgOverall.toFixed(1) : '—'}</h3>
+              <p>Average rating</p>
+           </div>
         </div>
       </div>
 
-      {/* Submission Stats */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: 'var(--accent-rose)' }}><i className="fa-solid fa-file-lines" /></div>
-          <div className="stat-info">
-            <h3><CountUp value={ss.totalSubmissions ?? '—'} /></h3>
-            <p>Submissions</p>
+      {/* The rest of the numbers, one tap away rather than on top of the page. */}
+      <details className="more-stats">
+        <summary>More numbers</summary>
+        <div className="stats-grid">
+          <div className="stat-card">
+             <div className="stat-icon" style={{ background: 'var(--accent-peach)' }}><i className="fa-solid fa-list-check" /></div>
+             <div className="stat-info">
+                <h3>{ts.totalTasks ?? '—'}</h3>
+                <p>Total tasks</p>
+             </div>
+          </div>
+          <div className="stat-card">
+             <div className="stat-icon" style={{ background: 'var(--accent-rose)' }}><i className="fa-solid fa-file-lines" /></div>
+             <div className="stat-info">
+                <h3>{subStats ? (ss.totalSubmissions ?? 0) : '—'}</h3>
+                <p>Submissions</p>
+             </div>
+          </div>
+          <div className="stat-card">
+             <div className="stat-icon" style={{ background: 'var(--accent-yellow)' }}><i className="fa-solid fa-inbox" /></div>
+             <div className="stat-info">
+                <h3>{subStats ? (ss.reviewed ?? 0) : '—'}</h3>
+                <p>Graded</p>
+             </div>
+          </div>
+          <div className="stat-card">
+             <div className="stat-icon" style={{ background: 'var(--accent-orange)' }}><i className="fa-solid fa-triangle-exclamation" /></div>
+             <div className="stat-info">
+                <h3>{subStats ? (ss.late ?? 0) : '—'}</h3>
+                <p>Handed in late</p>
+             </div>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: 'var(--accent-yellow)' }}><i className="fa-solid fa-inbox" /></div>
-          <div className="stat-info">
-            <h3><CountUp value={ss.reviewed ?? '—'} /></h3>
-            <p>Reviewed</p>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: 'var(--accent-orange)' }}><i className="fa-solid fa-hourglass-half" /></div>
-          <div className="stat-info">
-            <h3><CountUp value={ts.pendingTasks ?? '—'} /></h3>
-            <p>Pending Tasks</p>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: 'var(--brand-primary)', color: '#FFFFFF' }}><i className="fa-solid fa-triangle-exclamation" /></div>
-          <div className="stat-info">
-            <h3><CountUp value={ss.late ?? '—'} /></h3>
-            <p>Late Submissions</p>
-          </div>
-        </div>
-      </div>
+      </details>
 
       <div className="dashboard-main-row">
         {/* Children Cards */}
-        <div className="courses-section">
+        <div className="courses-section" data-tour="children">
           <div className="section-header">
             <h2>Your Children</h2>
           </div>
