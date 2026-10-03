@@ -15,7 +15,8 @@ const logs = [
     actor: { FullName: "Sara Student", Email: "sara@example.com" },
     actorEmail: "sara@example.com",
     actorRole: "student",
-    ip: "10.0.0.1",
+    ip: "::ffff:10.0.0.1",
+    meta: { userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36" },
     createdAt: "2026-09-14T09:00:00.000Z",
   },
   {
@@ -91,6 +92,14 @@ describe("audit log page", () => {
     expect(screen.getAllByText("Failed sign-in").length).toBeGreaterThan(0);
     expect(screen.queryByText("Signed in")).not.toBeInTheDocument();
     expect(screen.queryByText("Signed up")).not.toBeInTheDocument();
+  });
+
+  it("names the device and address instead of printing the raw meta", async () => {
+    render(<AuditLogsPage />);
+
+    expect((await screen.findAllByText("10.0.0.1")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Chrome on Windows").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/userAgent/)).not.toBeInTheDocument();
   });
 
   it("searches the readable label, not just the raw action", async () => {
