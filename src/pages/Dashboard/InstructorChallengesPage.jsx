@@ -7,6 +7,7 @@ import { SkeletonCardGrid } from '../../components/Skeleton/Skeleton';
 import './DashboardOverview.css';
 import './Insights.css';
 import './Gamification.css';
+import logger from '../../utils/logger';
 
 const DIFFICULTY = {
   easy: { label: 'Easy', className: 'gm-easy' },
@@ -83,7 +84,7 @@ const InstructorChallengesPage = () => {
         setAttempts(attemptsRes.data?.attempts || attemptsRes.data || []);
       }
     } catch (err) {
-      console.error('Failed to load instructor data:', err);
+      logger.error('Failed to load instructor data:', err);
     } finally {
       setLoading(false);
     }
