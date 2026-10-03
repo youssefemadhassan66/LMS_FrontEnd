@@ -1,88 +1,165 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
 } from 'recharts';
 import useFetchData from '../../hooks/useFetchData';
 import { useAuth } from '../../context/AuthContext';
 import TrendsChart from '../../components/TrendsChart/TrendsChart';
 import ReviewRadarChart from '../../components/TrendsChart/ReviewRadarChart';
+import ChartTooltip from '../../components/TrendsChart/ChartTooltip';
 import { TREND_CONFIGS, buildTrendEndpoint } from '../../components/TrendsChart/trendConfig';
 import { SkeletonStatsGrid, SkeletonCardGrid } from '../../components/Skeleton/Skeleton';
 import './DashboardOverview.css';
+import './Insights.css';
 
-/* ─── colour tokens (match CSS vars as hex for Recharts) ─── */
-const C = {
-  yellow:  '#f5a623',
-  orange:  '#f76b1c',
-  blue:    '#3b82f6',
-  green:   '#22c55e',
-  purple:  '#a855f7',
-  red:     '#ef4444',
-  muted:   '#6b7280',
-  bg:      'var(--bg-tertiary)',
-  border:  'var(--border-color)',
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+const periodName = (p) => {
+  if (!p) return '';
+  if (p.week != null) return `Week ${p.week}, ${p.year}`;
+  if (p.month != null) return `${MONTHS[p.month - 1] || p.month} ${p.year}`;
+  return String(p.year || '');
 };
 
-/* ─── Custom Tooltip for bar chart ─── */
-const CustomBarTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{
-      background: 'var(--card-bg)', border: '2px solid var(--border-color)',
-      borderRadius: 'var(--radius-sm)', padding: '0.6rem 1rem',
-      boxShadow: '4px 4px 0 var(--shadow-color)', fontSize: '0.85rem',
-    }}>
-      <p style={{ margin: '0 0 0.4rem', fontWeight: 700 }}>{label}</p>
-      {payload.map((p, i) => (
-        <p key={i} style={{ margin: '0.15rem 0', color: p.fill }}>
-          {p.name}: <strong>{p.value}{p.name !== 'Avg Review' ? '%' : ' ★'}</strong>
-        </p>
-      ))}
-    </div>
-  );
-};
+const initialsOf = (name = '') =>
+  name.split(/\s+/).filter(Boolean).map((part) => part[0]).join('').toUpperCase().slice(0, 2) || '?';
 
-/* ─── Custom Tooltip for radar chart ─── */
-const CustomRadarTooltip = ({ active, payload }) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{
-      background: 'var(--card-bg)', border: '2px solid var(--border-color)',
-      borderRadius: 'var(--radius-sm)', padding: '0.5rem 0.9rem',
-      boxShadow: '4px 4px 0 var(--shadow-color)', fontSize: '0.85rem',
-    }}>
-      <p style={{ margin: 0, fontWeight: 700 }}>{payload[0]?.payload?.metric}</p>
-      <p style={{ margin: '0.2rem 0 0', color: C.purple }}>Score: <strong>{payload[0]?.value?.toFixed(1)}</strong></p>
-    </div>
-  );
-};
+const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+const oneDecimal = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
 
-/* ─── Trend badge ─── */
+// The four headline measures. A section the API returns as null had nothing
+// to measure this period (no reviews, no exams), which is not the same as a
+// score of zero, so it is shown as a dash with the reason.
+const METRICS = [
+  {
+    key: 'reviews', label: 'Average review', icon: 'fa-solid fa-star', tone: 'var(--data-review)',
+    read: (s) => s?.reviews?.avgOverall, max: 5, unit: '/ 5', empty: 'No reviews yet',
+  },
+  {
+    key: 'tasks', label: 'Tasks done', icon: 'fa-solid fa-circle-check', tone: 'var(--data-tasks)',
+    read: (s) => s?.tasks?.completionRate, max: 100, unit: '%', empty: 'No tasks this period',
+  },
+  {
+    key: 'attendance', label: 'Attendance', icon: 'fa-solid fa-calendar-check', tone: 'var(--data-attendance)',
+    read: (s) => s?.attendance?.attendanceRate, max: 100, unit: '%', empty: 'No classes this period',
+  },
+  {
+    key: 'exams', label: 'Exam average', icon: 'fa-solid fa-pen-to-square', tone: 'var(--data-exams)',
+    read: (s) => s?.exams?.avgPercentage, max: 100, unit: '%', empty: 'No exams yet',
+  },
+];
+
 const Trend = ({ trend, delta }) => {
-  if (trend === 'improving') return <span style={{ color: C.green, fontWeight: 700, fontSize: '0.8rem' }}>↑ +{delta}</span>;
-  if (trend === 'declining') return <span style={{ color: C.red, fontWeight: 700, fontSize: '0.8rem' }}>↓ {delta}</span>;
-  return <span style={{ color: C.muted, fontWeight: 700, fontSize: '0.8rem' }}>→ Stable</span>;
+  const d = isNum(delta) ? oneDecimal(Math.abs(delta)) : null;
+  if (trend === 'improving') {
+    return <span className="ins-trend is-up"><i className="fa-solid fa-arrow-trend-up" />{d ? `+${d}` : 'Up'}</span>;
+  }
+  if (trend === 'declining') {
+    return <span className="ins-trend is-down"><i className="fa-solid fa-arrow-trend-down" />{d ? `−${d}` : 'Down'}</span>;
+  }
+  return <span className="ins-trend"><i className="fa-solid fa-minus" />Steady</span>;
 };
 
-/* ─── Single metric card with a tiny bar ─── */
-const MetricCard = ({ label, value, unit = '', max = 100, color, trend, delta, icon }) => {
-  const pct = Math.min(100, Math.max(0, (value / max) * 100));
+const MetricCard = ({ metric, snapshot }) => {
+  const value = metric.read(snapshot);
+  const section = snapshot?.[metric.key];
+  const has = isNum(value);
+  const pct = has ? Math.min(100, Math.max(0, (value / metric.max) * 100)) : 0;
   return (
-    <div className="glass-panel" style={{ padding: '1.25rem', borderTop: `4px solid ${color}` }}>
-      <p style={{ margin: '0 0 0.3rem', fontSize: '0.78rem', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-        {icon} {label}
+    <div className={`ins-metric${has ? '' : ' is-empty'}`} style={{ '--tone': metric.tone }}>
+      <p className="ins-metric__label"><i className={metric.icon} />{metric.label}</p>
+      <p className="ins-metric__value">
+        {has ? oneDecimal(value) : '—'}
+        {has && <small>{metric.unit}</small>}
       </p>
-      <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.8rem', fontWeight: 800, fontFamily: 'var(--font-heading)' }}>
-        {value}{unit}
-      </h3>
-      {/* mini progress bar */}
-      <div style={{ height: '6px', background: 'var(--bg-tertiary)', borderRadius: '99px', marginBottom: '0.5rem', overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: '99px', transition: 'width 0.6s ease' }} />
+      <div className="ins-bar is-thin"><span style={{ width: `${pct}%` }} /></div>
+      <div className="ins-metric__foot">
+        {has ? <Trend trend={section?.trend} delta={section?.delta} /> : <span>{metric.empty}</span>}
       </div>
-      <Trend trend={trend} delta={delta} />
+    </div>
+  );
+};
+
+const PeriodSwitch = ({ period, onChange }) => (
+  <div className="ins-seg" role="group" aria-label="Period">
+    {[['weekly', 'Weekly'], ['monthly', 'Monthly']].map(([value, label]) => (
+      <button key={value} type="button" aria-pressed={period === value} onClick={() => onChange(value)}>
+        {label}
+      </button>
+    ))}
+  </div>
+);
+
+/* ── Admins and instructors: pick a student ── */
+const StudentPicker = ({ profiles, loading, onOpen }) => {
+  const [query, setQuery] = useState('');
+  const shown = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return profiles;
+    return profiles.filter((p) =>
+      `${p.user?.FullName || ''} ${p.user?.Email || ''} ${p.grade || ''}`.toLowerCase().includes(needle));
+  }, [profiles, query]);
+
+  return (
+    <div className="overview-container">
+      <div className="ins-head">
+        <div className="ins-head__text">
+          <h1 className="page-title">Progress reports</h1>
+          <p className="page-subtitle">Choose a student to see their grades, attendance and trends.</p>
+        </div>
+      </div>
+
+      <div className="ins-toolbar">
+        <label className="ins-search">
+          <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name, email or grade"
+            aria-label="Search students"
+          />
+        </label>
+        {!loading && (
+          <span className="ins-count">
+            {shown.length === profiles.length ? `${profiles.length} students` : `${shown.length} of ${profiles.length} students`}
+          </span>
+        )}
+      </div>
+
+      {loading ? (
+        <SkeletonCardGrid count={6} minWidth={260} gap="1rem" />
+      ) : profiles.length === 0 ? (
+        <div className="ins-panel ins-empty">
+          <i className="fa-solid fa-user-graduate" />
+          <strong>No students yet</strong>
+          <p>Reports appear here once a student profile exists.</p>
+        </div>
+      ) : shown.length === 0 ? (
+        <div className="ins-panel ins-empty">
+          <i className="fa-solid fa-magnifying-glass" />
+          <strong>No match for “{query}”</strong>
+          <p>Try part of a name or a grade.</p>
+        </div>
+      ) : (
+        <div className="ins-cards">
+          {shown.map((p) => {
+            const name = p.user?.FullName || 'Student';
+            return (
+              <button key={p._id} type="button" className="ins-card tone-student" onClick={() => onOpen(p._id)}>
+                <span className="ins-avatar is-large" aria-hidden="true">{initialsOf(name)}</span>
+                <span className="ins-person__text">
+                  <strong>{name}</strong>
+                  <small>{p.grade || 'No grade set'}</small>
+                </span>
+                <i className="fa-solid fa-chevron-right ins-card__go" aria-hidden="true" />
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
@@ -96,83 +173,53 @@ const ProgressPage = () => {
   const navigate = useNavigate();
   const [period, setPeriod] = useState('monthly');
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'instructor';
+  const role = user?.role;
+  const isStaff = role === 'admin' || role === 'instructor';
 
   let endpoint = '';
   if (profileId) {
     endpoint = `/api/v1/progress/child/${profileId}?period=${period}`;
-  } else if (user?.role === 'parent') {
+  } else if (role === 'parent') {
     endpoint = `/api/v1/progress/compare-children`;
-  } else if (user?.role === 'student') {
+  } else if (role === 'student') {
     endpoint = `/api/v1/progress/me?period=${period}`;
   }
 
   const { data, loading, error } = useFetchData(endpoint || null);
 
+  // Whose report this is. The progress endpoint returns numbers only.
+  const { data: profileData } = useFetchData(profileId ? `/api/v1/StudentProfile/${profileId}` : null);
+
   const { data: profilesData, loading: profilesLoading } = useFetchData(
     // Instructors only see their linked students; admins see all
-    isAdmin && !profileId
-      ? (user?.role === 'instructor' ? '/api/v1/session/me/students' : '/api/v1/StudentProfile/all')
+    isStaff && !profileId
+      ? (role === 'instructor' ? '/api/v1/session/me/students' : '/api/v1/StudentProfile/all')
       : null
   );
   const profiles = Array.isArray(profilesData)
     ? profilesData
     : (profilesData?.students || profilesData?.docs || profilesData?.profiles || []);
 
-  /* ── Admin picker ── */
-  if (isAdmin && !profileId) {
+  if (isStaff && !profileId) {
     return (
-      <div className="overview-container" style={{ padding: '2rem 0' }}>
-        <h2 className="page-title">Progress Reports</h2>
-        <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Select a student to view their progress report.</p>
-        {profilesLoading ? (
-          <p style={{ color: 'var(--text-muted)' }}>Loading student profiles...</p>
-        ) : profiles.length === 0 ? (
-          <div className="glass-panel" style={{ padding: '2rem', textAlign: 'center' }}><p>No student profiles found.</p></div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
-            {profiles.map(p => {
-              const name = p.user?.FullName || 'Student';
-              const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-              return (
-                <div
-                  key={p._id}
-                  onClick={() => navigate(`/dashboard/progress/${p._id}`)}
-                  style={{
-                    padding: '1.25rem', background: 'var(--card-bg)', border: '3px solid var(--border-color)',
-                    borderRadius: 'var(--radius-md)', boxShadow: '4px 4px 0px 0px var(--shadow-color)',
-                    cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', gap: '1rem',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = '6px 6px 0px 0px var(--shadow-color)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '4px 4px 0px 0px var(--shadow-color)'; }}
-                >
-                  <div style={{
-                    width: '48px', height: '48px', borderRadius: '50%', display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', fontWeight: 700, fontSize: '0.9rem', flexShrink: 0,
-                    background: 'linear-gradient(135deg, var(--brand-primary), var(--info))', color: '#fff',
-                  }}>{initials}</div>
-                  <div>
-                    <h3 style={{ margin: '0 0 0.2rem', fontSize: '1rem', fontFamily: 'var(--font-heading)', fontWeight: 400 }}>{name}</h3>
-                    <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>Grade: {p.grade || 'N/A'}</p>
-                  </div>
-                  <span style={{ marginLeft: 'auto', fontSize: '1.2rem' }}><i className="fa-solid fa-chart-line" /></span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <StudentPicker
+        profiles={profiles}
+        loading={profilesLoading}
+        onOpen={(id) => navigate(`/dashboard/progress/${id}`)}
+      />
     );
   }
 
   if (!endpoint) {
     return (
-      <div className="overview-container" style={{ padding: '2rem' }}>
-        <h2 className="page-title">Progress Reports</h2>
-        <div className="glass-panel" style={{ padding: '2rem', textAlign: 'center' }}>
-          <p>Please select a student profile from the Profiles page to view their progress.</p>
-          <button className="nb-btn nb-btn-primary" onClick={() => navigate('/dashboard/profiles')} style={{ marginTop: '1rem' }}>
-            Go to Student Profiles
+      <div className="overview-container">
+        <h1 className="page-title">Progress reports</h1>
+        <div className="ins-panel ins-empty">
+          <i className="fa-solid fa-user-graduate" />
+          <strong>Choose a student first</strong>
+          <p>Open a student profile to see their progress.</p>
+          <button className="nb-btn nb-btn-primary" onClick={() => navigate('/dashboard/profiles')} style={{ marginTop: '0.75rem' }}>
+            Go to student profiles
           </button>
         </div>
       </div>
@@ -182,49 +229,83 @@ const ProgressPage = () => {
   if (loading) return (
     <div className="overview-container">
       <h1 className="page-title">Progress</h1>
-      <p className="page-subtitle">Loading progress data…</p>
+      <p className="page-subtitle">Loading progress…</p>
       <SkeletonStatsGrid count={4} />
-      <div style={{ marginTop: '1.5rem' }}>
-        <SkeletonCardGrid count={2} minWidth={340} gap="1.5rem" />
-      </div>
+      <SkeletonCardGrid count={2} minWidth={340} gap="1.25rem" />
     </div>
   );
-  if (error) return <div style={{ padding: '2rem', color: 'var(--error)' }}>Error: {error}</div>;
 
-  /* ── Parent comparison view ── */
-  if (user?.role === 'parent' && !profileId) {
+  if (error) {
+    return (
+      <div className="overview-container">
+        <h1 className="page-title">Progress</h1>
+        <div className="ins-panel ins-empty">
+          <i className="fa-solid fa-triangle-exclamation" style={{ color: 'var(--error)' }} />
+          <strong>Could not load this report</strong>
+          <p>{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Parent: every child side by side ── */
+  if (role === 'parent' && !profileId) {
     const children = Array.isArray(data) ? data : (data?.data || []);
     return (
       <div className="overview-container">
-        <h1 className="page-title">Children Progress Comparison</h1>
-        <p className="page-subtitle">Compare performance metrics across your children</p>
+        <div className="ins-head">
+          <div className="ins-head__text">
+            <h1 className="page-title">How your children are doing</h1>
+            <p className="page-subtitle">This month at a glance. Open a report for the full picture.</p>
+          </div>
+        </div>
         {children.length === 0 ? (
-          <div className="glass-panel" style={{ padding: '2rem' }}><p>No children linked to your account.</p></div>
+          <div className="ins-panel ins-empty">
+            <i className="fa-solid fa-children" />
+            <strong>No children linked yet</strong>
+            <p>Send a link request from your home page to see a child’s progress here.</p>
+          </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginTop: '1.5rem' }}>
-            {children.map((c, i) => (
-              <div key={i} className="glass-panel" style={{ padding: '1.5rem' }}>
-                <h3 style={{ margin: '0 0 0.5rem', fontFamily: 'var(--font-heading)', fontSize: '1.4rem' }}>{c.child?.fullName}</h3>
-                <p style={{ margin: '0 0 1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>{c.child?.grade}</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {[
-                    { label: 'Review Avg', val: `${c.latestStats?.reviewAvgOverall?.toFixed(1) || 'N/A'} ⭐` },
-                    { label: 'Task Completion', val: `${c.latestStats?.taskCompletionRate || 0}%` },
-                    { label: 'Attendance Rate', val: `${c.latestStats?.attendanceRate || 0}%` },
-                    { label: 'Exam Avg', val: `${c.latestStats?.examAvgPercentage || 0}%` },
-                  ].map(row => (
-                    <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)' }}>
-                      <span style={{ fontWeight: 600 }}>{row.label}</span>
-                      <span style={{ color: 'var(--brand-primary)', fontWeight: 'bold' }}>{row.val}</span>
-                    </div>
-                  ))}
+          <div className="ins-cards" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+            {children.map((c) => {
+              const s = c.latestStats || {};
+              const rows = [
+                { label: 'Average review', value: s.reviewAvgOverall, max: 5, unit: ' / 5', tone: 'var(--data-review)', none: 'No reviews yet' },
+                { label: 'Tasks done', value: s.taskCompletionRate, max: 100, unit: '%', tone: 'var(--data-tasks)', none: 'No tasks yet' },
+                { label: 'Attendance', value: s.attendanceRate, max: 100, unit: '%', tone: 'var(--data-attendance)', none: 'No classes yet' },
+                { label: 'Exam average', value: s.examAvgPercentage, max: 100, unit: '%', tone: 'var(--data-exams)', none: 'No exams yet' },
+              ];
+              const name = c.child?.fullName || 'Child';
+              return (
+                <div key={c.child?.profileId || name} className="ins-panel tone-student">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                    <span className="ins-avatar is-large" aria-hidden="true">{initialsOf(name)}</span>
+                    <span className="ins-person__text">
+                      <strong style={{ fontSize: '1.05rem' }}>{name}</strong>
+                      <small>{c.child?.grade || 'No grade set'}</small>
+                    </span>
+                  </div>
+                  <div className="ins-card__rows">
+                    {rows.map((row) => {
+                      const has = isNum(row.value);
+                      return (
+                        <div key={row.label} className="ins-row" style={{ '--tone': row.tone }}>
+                          <div>
+                            <span>{row.label}</span>
+                            {has ? <strong>{oneDecimal(row.value)}{row.unit}</strong> : <span className="is-none">{row.none}</span>}
+                          </div>
+                          <div className="ins-bar is-thin"><span style={{ width: `${has ? Math.min(100, (row.value / row.max) * 100) : 0}%` }} /></div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button className="nb-btn nb-btn-secondary" style={{ width: '100%', justifyContent: 'center' }}
+                    onClick={() => navigate(`/dashboard/progress/${c.child?.profileId}`)}>
+                    See full report
+                  </button>
                 </div>
-                <button className="nb-btn nb-btn-secondary" style={{ width: '100%', marginTop: '1.5rem', justifyContent: 'center' }}
-                  onClick={() => navigate(`/dashboard/progress/${c.child?.profileId}`)}>
-                  View Full Details
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -232,181 +313,150 @@ const ProgressPage = () => {
   }
 
   /* ══════════════════════════════════════════════════════════════
-     SINGLE STUDENT VIEW — charts
+     ONE STUDENT
   ══════════════════════════════════════════════════════════════ */
   const snapshot = data?.snapshot || data?.data?.snapshot;
+  const trends = data?.trends || data?.data?.trends;
+  const profile = profileData?.data || profileData;
+  const studentName = profile?.user?.FullName;
+  const scope = profileId ? `child/${profileId}` : 'me';
 
-  /* Build chart datasets */
-  const reviewScore  = snapshot?.reviews?.avgOverall ?? 0;
-  const taskRate     = snapshot?.tasks?.completionRate ?? 0;
-  const attendRate   = snapshot?.attendance?.attendanceRate ?? 0;
-  const examAvg      = snapshot?.exams?.avgPercentage ?? 0;
-  const subScore     = snapshot?.submissions?.avgScore ?? 0;
-  const subOnTime    = snapshot?.submissions?.onTimeRate ?? 0;
+  const title = !profileId ? 'My progress' : (studentName ? `${studentName}’s progress` : 'Student progress');
+  const subtitle = [profile?.grade, periodName(snapshot?.currentPeriod)].filter(Boolean).join(' · ');
+  const backLabel = role === 'parent' ? 'All children' : 'All students';
 
-  /* Grouped bar chart — all metrics side by side */
+  const reviewScore = snapshot?.reviews?.avgOverall;
+  const subScore = snapshot?.submissions?.avgScore;
+  const subOnTime = snapshot?.submissions?.onTimeRate;
+
+  // Everything on one 0-100 scale; measures with nothing this period are
+  // left out rather than drawn as a zero.
   const barData = [
-    { name: 'Reviews',    value: parseFloat((reviewScore * 20).toFixed(1)), color: C.yellow },
-    { name: 'Tasks',      value: taskRate,   color: C.orange },
-    { name: 'Attendance', value: attendRate, color: C.blue   },
-    { name: 'Exams',      value: examAvg,    color: C.green  },
-    { name: 'Sub Score',  value: parseFloat((subScore * 10).toFixed(1)), color: C.purple },
-    { name: 'On-Time',    value: subOnTime,  color: C.red    },
-  ];
+    { name: 'Reviews', value: isNum(reviewScore) ? +(reviewScore * 20).toFixed(1) : null, color: 'var(--data-review)' },
+    { name: 'Tasks', value: snapshot?.tasks?.completionRate, color: 'var(--data-tasks)' },
+    { name: 'Attendance', value: snapshot?.attendance?.attendanceRate, color: 'var(--data-attendance)' },
+    { name: 'Exams', value: snapshot?.exams?.avgPercentage, color: 'var(--data-exams)' },
+    { name: 'Homework', value: isNum(subScore) ? +(subScore * 10).toFixed(1) : null, color: 'var(--data-score)' },
+    { name: 'On time', value: subOnTime, color: 'var(--data-ontime)' },
+  ].filter((d) => isNum(d.value));
 
-  /* Radar chart — normalise everything to 0-100 */
-  const radarData = [
-    { metric: 'Reviews',    score: parseFloat((reviewScore * 20).toFixed(1)) },
-    { metric: 'Tasks',      score: taskRate   },
-    { metric: 'Attendance', score: attendRate },
-    { metric: 'Exams',      score: examAvg    },
-    { metric: 'Sub Score',  score: parseFloat((subScore * 10).toFixed(1)) },
-    { metric: 'On-Time',    score: subOnTime  },
-  ];
-
-  const periodLabel = snapshot?.currentPeriod
-    ? `${snapshot.currentPeriod.year}-${String(snapshot.currentPeriod.month || snapshot.currentPeriod.week).padStart(2, '0')}`
-    : 'N/A';
+  const trendEntries = Object.entries(TREND_CONFIGS).map(([key, cfg]) => {
+    const rows = Array.isArray(trends?.[key]) ? trends[key] : null;
+    const has = rows ? rows.some((r) => cfg.metrics.some((m) => r[m.key] != null)) : true;
+    return { key, cfg, rows, has };
+  });
+  const charted = trendEntries.filter((t) => t.has);
+  const uncharted = trendEntries.filter((t) => !t.has);
 
   return (
     <div className="overview-container">
-      {/* ── Header ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h1 className="page-title">{profileId ? 'Student Progress' : 'My Progress'}</h1>
-          <p className="page-subtitle">Performance snapshot and trends</p>
+      <div className="ins-head">
+        <div className="ins-head__text">
+          {profileId && role !== 'student' && (
+            <button type="button" className="ins-back" onClick={() => navigate('/dashboard/progress')}>
+              <i className="fa-solid fa-arrow-left" /> {backLabel}
+            </button>
+          )}
+          <h1 className="page-title">{title}</h1>
+          {subtitle && <p className="page-subtitle">{subtitle}</p>}
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>Period:</span>
-          <select
-            value={period}
-            onChange={e => setPeriod(e.target.value)}
-            style={{ padding: '0.4rem 0.8rem', border: '2px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--card-bg)', color: 'var(--text-primary)', fontWeight: 600, outline: 'none' }}
-          >
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-        </div>
+        <PeriodSwitch period={period} onChange={setPeriod} />
       </div>
 
-      {!snapshot || (!snapshot.reviews && !snapshot.tasks && !snapshot.attendance && !snapshot.exams) ? (
-        <div className="glass-panel" style={{ padding: '2rem', textAlign: 'center', marginTop: '1rem' }}>
-          <p>No progress data available yet.</p>
+      {barData.length === 0 ? (
+        <div className="ins-panel ins-empty">
+          <i className="fa-solid fa-seedling" />
+          <strong>Nothing to report yet</strong>
+          <p>Numbers appear here after the first classes, tasks and reviews.</p>
         </div>
       ) : (
         <>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.5rem 0 1.5rem', fontWeight: 600 }}>
-            <i className="fa-solid fa-calendar-days" /> Current Period: {periodLabel}
-          </p>
-
-          {/* ── Metric cards ── */}
-          <div className="stats-grid" style={{ marginBottom: '2rem' }}>
-            <MetricCard label="Average Review" value={reviewScore.toFixed(1)} unit=" ⭐" max={5} color={C.yellow}
-              trend={snapshot.reviews?.trend} delta={snapshot.reviews?.delta?.toFixed(1)} icon={<i className="fa-solid fa-star" />} />
-            <MetricCard label="Task Completion" value={taskRate} unit="%" color={C.orange}
-              trend={snapshot.tasks?.trend} delta={snapshot.tasks?.delta} icon={<i className="fa-solid fa-circle-check" />} />
-            <MetricCard label="Attendance Rate" value={attendRate} unit="%" color={C.blue}
-              trend={snapshot.attendance?.trend} delta={snapshot.attendance?.delta} icon={<i className="fa-solid fa-calendar-days" />} />
-            <MetricCard label="Exam Average" value={examAvg} unit="%" color={C.green}
-              trend={snapshot.exams?.trend} delta={snapshot.exams?.delta} icon={<i className="fa-solid fa-pen-to-square" />} />
+          <div className="ins-metrics">
+            {METRICS.map((m) => <MetricCard key={m.key} metric={m} snapshot={snapshot} />)}
           </div>
 
-          {/* ── Charts row ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-
-            {/* Bar chart */}
-            <div className="glass-panel" style={{ padding: '1.5rem' }}>
-              <h3 style={{ margin: '0 0 1.25rem', fontFamily: 'var(--font-heading)', fontSize: '1.1rem' }}>
-                <i className="fa-solid fa-chart-bar" /> Metrics Overview
-              </h3>
+          <div className="ins-grid-2">
+            <div className="ins-panel">
+              <div className="ins-panel__head">
+                <h3><i className="fa-solid fa-chart-column" />This period at a glance</h3>
+                <span className="ins-panel__meta">out of 100</span>
+              </div>
               <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={barData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }} barSize={32}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--text-muted)', fontWeight: 600 }} axisLine={false} tickLine={false} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                  <Tooltip content={<CustomBarTooltip />} cursor={{ fill: 'rgba(0,0,0,0.05)' }} />
-                  <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                    {barData.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
-                    ))}
+                <BarChart data={barData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }} barSize={34}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--text-muted)', fontWeight: 600 }} axisLine={false} tickLine={false} interval={0} />
+                  <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    content={<ChartTooltip format={(v) => `${oneDecimal(v)} / 100`} />}
+                    cursor={{ fill: 'var(--bg-tertiary)', opacity: 0.5 }}
+                  />
+                  <Bar dataKey="value" name="Score" radius={[8, 8, 0, 0]}>
+                    {barData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-              <p style={{ margin: '0.75rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-                * Reviews &amp; Sub Score normalised to 0–100
+              <p className="ins-panel__meta" style={{ margin: '0.6rem 0 0' }}>
+                Reviews (out of 5) and homework scores (out of 10) are scaled to 100 so they sit on one chart.
               </p>
             </div>
 
-            {/* Radar chart */}
-            <div className="glass-panel" style={{ padding: '1.5rem' }}>
-              <h3 style={{ margin: '0 0 1.25rem', fontFamily: 'var(--font-heading)', fontSize: '1.1rem' }}>
-                <i className="fa-solid fa-chart-line" /> Performance Radar
-              </h3>
-              <ResponsiveContainer width="100%" height={260}>
-                <RadarChart data={radarData} margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
-                  <PolarGrid stroke="var(--border-color)" />
-                  <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11, fill: 'var(--text-muted)', fontWeight: 600 }} />
-                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 9, fill: 'var(--text-muted)' }} />
-                  <Radar name="Score" dataKey="score" stroke={C.purple} fill={C.purple} fillOpacity={0.25} strokeWidth={2} dot={{ r: 4, fill: C.purple }} />
-                  <Tooltip content={<CustomRadarTooltip />} />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* ── Session-review radar (per-metric averages from the dedicated endpoint) ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
             <ReviewRadarChart
-              endpoint={`/api/v1/progress/${profileId ? `child/${profileId}` : 'me'}/reviews/radar`}
-              title="Session Review Breakdown"
+              endpoint={`/api/v1/progress/${scope}/reviews/radar`}
+              title="Teacher review breakdown"
               icon="fa-solid fa-star-half-stroke"
             />
           </div>
 
-          {/* ── Trend charts (granular per-category) ── */}
-          <div style={{ marginBottom: '2rem' }}>
-            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.25rem', margin: '0 0 1rem', fontWeight: 700 }}>
-              <i className="fa-solid fa-chart-line" style={{ color: 'var(--brand-primary)', marginRight: '0.5rem' }} />
-              Trends Over Time
-            </h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '1.25rem' }}>
-              {Object.entries(TREND_CONFIGS).map(([key, cfg]) => (
-                <TrendsChart
-                  key={key}
-                  endpoint={buildTrendEndpoint(profileId ? `child/${profileId}` : 'me', cfg.suffix, period)}
-                  title={cfg.title}
-                  icon={cfg.icon}
-                  metrics={cfg.metrics}
-                  yDomain={cfg.yDomain}
-                />
-              ))}
+          {isNum(subScore) && (
+            <div className="ins-panel" style={{ '--tone': 'var(--data-score)' }}>
+              <div className="ins-panel__head">
+                <h3><i className="fa-solid fa-clipboard-list" />Homework</h3>
+                <Trend trend={snapshot.submissions?.trend} delta={snapshot.submissions?.scoreDelta} />
+              </div>
+              <div className="ins-grid-2">
+                <div>
+                  <div className="ins-figure"><span>Average score</span><strong>{oneDecimal(subScore)}<small style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}> / 10</small></strong></div>
+                  <div className="ins-bar"><span style={{ width: `${Math.min(100, subScore * 10)}%` }} /></div>
+                </div>
+                {isNum(subOnTime) && (
+                  <div style={{ '--tone': 'var(--data-ontime)' }}>
+                    <div className="ins-figure"><span>Handed in on time</span><strong>{oneDecimal(subOnTime)}%</strong></div>
+                    <div className="ins-bar"><span style={{ width: `${Math.min(100, subOnTime)}%` }} /></div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* ── Submissions panel ── */}
-          <div className="glass-panel" style={{ padding: '1.5rem' }}>
-            <h3 style={{ margin: '0 0 1rem', fontFamily: 'var(--font-heading)', fontSize: '1.1rem' }}><i className="fa-solid fa-clipboard-list" /> Submissions Performance</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div style={{ padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', border: '2px solid var(--border-color)' }}>
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Avg Score</span>
-                <div style={{ fontSize: '1.8rem', fontWeight: 800, margin: '0.25rem 0', fontFamily: 'var(--font-heading)' }}>
-                  {subScore.toFixed(1)} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>/ 10</span>
-                </div>
-                {/* mini bar */}
-                <div style={{ height: '6px', background: 'var(--border-color)', borderRadius: '99px', overflow: 'hidden', marginBottom: '0.4rem' }}>
-                  <div style={{ height: '100%', width: `${subScore * 10}%`, background: C.purple, borderRadius: '99px', transition: 'width 0.6s ease' }} />
-                </div>
-                <Trend trend={snapshot.submissions?.trend} delta={snapshot.submissions?.scoreDelta?.toFixed(1)} />
+          <section aria-labelledby="trends-title" style={{ display: 'grid', gap: '1rem' }}>
+            <h2 id="trends-title" className="ins-section-title">
+              <i className="fa-solid fa-chart-line" /> Over time
+            </h2>
+            {charted.length > 0 && (
+              <div className="ins-grid-2 ins-grid-fill">
+                {charted.map(({ key, cfg, rows }) => (
+                  <TrendsChart
+                    key={key}
+                    rows={rows || undefined}
+                    endpoint={rows ? undefined : buildTrendEndpoint(scope, cfg.suffix, period)}
+                    title={cfg.title}
+                    icon={cfg.icon}
+                    metrics={cfg.metrics}
+                    yDomain={cfg.yDomain}
+                  />
+                ))}
               </div>
-              <div style={{ padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', border: '2px solid var(--border-color)' }}>
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>On-Time Rate</span>
-                <div style={{ fontSize: '1.8rem', fontWeight: 800, margin: '0.25rem 0', fontFamily: 'var(--font-heading)' }}>{subOnTime}%</div>
-                <div style={{ height: '6px', background: 'var(--border-color)', borderRadius: '99px', overflow: 'hidden', marginBottom: '0.4rem' }}>
-                  <div style={{ height: '100%', width: `${subOnTime}%`, background: C.red, borderRadius: '99px', transition: 'width 0.6s ease' }} />
-                </div>
-              </div>
-            </div>
-          </div>
+            )}
+            {uncharted.length > 0 && (
+              <p className="ins-note">
+                <i className="fa-solid fa-circle-info" />
+                <span>
+                  <strong>No history yet for {uncharted.map((t) => t.cfg.short).join(', ')}.</strong>{' '}
+                  These charts appear once there is something to plot.
+                </span>
+              </p>
+            )}
+          </section>
         </>
       )}
     </div>

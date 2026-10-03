@@ -58,6 +58,17 @@
   /* Typography */
   --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Data colours — one per measure, the same on every chart, card and
+     legend: a review is always amber, attendance always cyan. Deep enough
+     for 3:1 against white cards. */
+  --data-review: #D97706;
+  --data-tasks: #2563EB;
+  --data-attendance: #0891B2;
+  --data-exams: #059669;
+  --data-score: #7C3AED;
+  --data-ontime: #DB2777;
+  --chart-grid: rgba(100, 116, 139, 0.28);
 }
 
 /* `data-cosmic-space` is set by CosmicScene once the home-page scroll journey
@@ -115,6 +126,15 @@
 
   /* Dot grid */
   --dot-color: rgba(148, 163, 184, 0.1);
+
+  /* Data colours, lifted to read on navy. */
+  --data-review: #FBBF24;
+  --data-tasks: #60A5FA;
+  --data-attendance: #22D3EE;
+  --data-exams: #34D399;
+  --data-score: #A78BFA;
+  --data-ontime: #F472B6;
+  --chart-grid: rgba(148, 163, 184, 0.16);
 }
 
 /* =====================================================================
