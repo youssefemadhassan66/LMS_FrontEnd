@@ -1,436 +1,221 @@
 import React, { useState, useEffect } from 'react';
 import { useApiRequest } from '../../hooks/useApiRequest';
 import { useAuth } from '../../context/AuthContext';
+import { SkeletonCardGrid } from '../../components/Skeleton/Skeleton';
+import './DashboardOverview.css';
+import './Insights.css';
+import './Gamification.css';
+
+const LIMIT = 20;
+const GRADES = ['Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
+
+const PERIODS = [
+  { value: 'all_time', label: 'All time' },
+  { value: 'monthly', label: 'This month' },
+  { value: 'weekly', label: 'This week' },
+];
+
+// What the server sorts by for each metric (LeaderboardService): XP, coding
+// challenges solved, or the longest streak. Weekly and monthly boards always
+// rank XP earned in that window.
+const METRICS = [
+  { value: 'xp', label: 'XP', score: (r) => `${r.xp ?? 0} XP` },
+  { value: 'challenges', label: 'Coding challenges', score: (r) => `${r.challengesSolved ?? 0} solved` },
+  {
+    value: 'streak',
+    label: 'Best streak',
+    score: (r) => {
+      const days = Math.max(r.longestStreak ?? 0, r.currentStreak ?? 0);
+      return `${days} day${days === 1 ? '' : 's'}`;
+    },
+  },
+];
+
+const initialsOf = (name = '') =>
+  name.split(/\s+/).filter(Boolean).map((part) => part[0]).join('').toUpperCase().slice(0, 2) || '?';
 
 const LeaderboardPage = () => {
   const { user } = useAuth();
   const { request } = useApiRequest();
-  const [leaderboard, setLeaderboard] = useState([]);
+  const [rows, setRows] = useState([]);
   const [myRank, setMyRank] = useState(null);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  
-  // Filters
-  const [period, setPeriod] = useState('all-time'); // weekly, monthly, all-time
-  const [metric, setMetric] = useState('xp'); // xp, challenges, streak
-  const [grade, setGrade] = useState(''); // Grade 6, Grade 8, etc.
 
-  const limit = 10;
-  const apiPeriod = period === 'all-time' ? 'all_time' : period;
+  const [period, setPeriod] = useState('all_time');
+  const [metric, setMetric] = useState('xp');
+  const [grade, setGrade] = useState('');
 
-  const fetchLeaderboard = React.useCallback(async () => {
-    setLoading(true);
-    try {
-      const queryParams = new URLSearchParams({
-        period: apiPeriod,
-        metric,
-        page: page.toString(),
-        limit: limit.toString()
-      });
-      if (grade) {
-        queryParams.append('grade', grade);
-      }
-
-      const res = await request(`/api/v1/leaderboard?${queryParams.toString()}`);
-      if (res.status === 'success' && res.data) {
-        const rows = (res.data.leaderboard || []).map((student) => ({
-          ...student,
-          earnedXP: student.earnedXP ?? student.xp ?? 0,
-          badgesCount: student.badgesCount ?? student.badgeCount ?? 0,
-        }));
-        setLeaderboard(rows);
-        // Calculate total pages
-        const total = res.totalStudents || 0;
-        setTotalPages(Math.ceil(total / limit) || 1);
-      }
-    } catch (err) {
-      console.error('Failed to load leaderboard:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [apiPeriod, metric, grade, page, request]);
-
-  const fetchMyRank = React.useCallback(async () => {
-    if (user?.role !== 'student') return;
-    try {
-      const res = await request(`/api/v1/leaderboard/my-rank?period=${apiPeriod}&metric=${metric}`);
-      if (res.status === 'success') {
-        const rankData = res.data || {};
-        const score = metric === 'xp'
-          ? rankData.score ?? rankData.earnedXP ?? rankData.xp ?? 0
-          : metric === 'challenges'
-            ? rankData.score ?? rankData.challengesSolved ?? 0
-            : rankData.score ?? rankData.currentStreak ?? rankData.longestStreak ?? 0;
-        setMyRank({ ...rankData, score });
-      }
-    } catch {
-      // Silently fail if student doesn't have a rank yet
-      setMyRank(null);
-    }
-  }, [apiPeriod, metric, user, request]);
+  const effectiveMetric = period === 'all_time' ? metric : 'xp';
+  const metricDef = METRICS.find((m) => m.value === effectiveMetric);
 
   useEffect(() => {
-    fetchLeaderboard();
-    fetchMyRank();
-  }, [fetchLeaderboard, fetchMyRank]);
+    let alive = true;
+    (async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const params = new URLSearchParams({ period, metric: effectiveMetric, page: String(page), limit: String(LIMIT) });
+        if (grade) params.set('grade', grade);
+        const res = await request(`/api/v1/leaderboard?${params}`);
+        if (!alive) return;
+        // The list comes back at the top level ({ leaderboard, myRank,
+        // totalStudents }), not under `data`.
+        const body = res?.leaderboard ? res : (res?.data || {});
+        setRows(Array.isArray(body.leaderboard) ? body.leaderboard : []);
+        setMyRank(body.myRank ?? null);
+        setTotal(body.totalStudents ?? 0);
+      } catch (err) {
+        if (alive) setError(err.message || 'Could not load the leaderboard.');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [period, effectiveMetric, grade, page, request]);
 
-  // Reset to page 1 on filter changes
-  useEffect(() => {
-    setPage(1);
-  }, [period, metric, grade]);
+  const changeFilter = (setter) => (value) => { setter(value); setPage(1); };
 
-  // Extract top 3 for the podium
-  const topThree = leaderboard.slice(0, 3);
-  const remainingStudents = leaderboard.slice(3);
-
-  // Map 1st, 2nd, 3rd to podium order (2nd on left, 1st center, 3rd right)
-  const podiumOrder = [];
-  if (topThree[1]) podiumOrder.push({ ...topThree[1], displayRank: 2 });
-  if (topThree[0]) podiumOrder.push({ ...topThree[0], displayRank: 1 });
-  if (topThree[2]) podiumOrder.push({ ...topThree[2], displayRank: 3 });
-
-  const getMetricLabel = () => {
-    if (metric === 'xp') return 'XP';
-    if (metric === 'challenges') return 'Puzzles';
-    return 'Days';
-  };
-
-  const _getMetricValue = (item) => {
-    if (metric === 'xp') return `${item.score ?? item.earnedXP ?? item.xp ?? 0} XP`;
-    if (metric === 'challenges') return `${item.score ?? item.challengesSolved ?? 0} Puzzles`;
-    return `🔥 ${item.currentStreak || 0} Days`;
-  };
-
-  const getLeaderboardMetricValue = (item) => {
-    if (metric === 'xp') return `${item.score ?? item.earnedXP ?? item.xp ?? 0} XP`;
-    if (metric === 'challenges') return `${item.score ?? item.challengesSolved ?? 0} Puzzles`;
-    return `${item.score ?? item.currentStreak ?? item.longestStreak ?? 0} Days`;
-  };
+  const isMe = (row) => row.userId && user?._id && String(row.userId) === String(user._id);
+  const meRow = rows.find(isMe);
+  const totalPages = Math.max(1, Math.ceil(total / LIMIT));
+  const podium = page === 1 ? rows.slice(0, 3) : [];
+  const rest = page === 1 ? rows.slice(3) : rows;
+  const isStudent = user?.role === 'student';
 
   return (
-    <div style={{ paddingBottom: '20px', position: 'relative' }}>
-      <div style={{ marginBottom: '2rem' }}>
-        <h1 className="page-title">
-          <i className="fa-solid fa-trophy" aria-hidden="true" style={{ color: 'var(--warning)', marginRight: '0.6rem' }} />
-          Leaderboard
-        </h1>
-        <p className="page-subtitle">Compete with your peers, solve coding challenges, and earn XP to rise to the top!</p>
-      </div>
-
-      {/* ⚡ Filters Panel */}
-      <div className="glass-panel" style={{
-        padding: '1.25rem',
-        marginBottom: '2rem',
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '1.5rem',
-        alignItems: 'center',
-        justifyContent: 'space-between'
-      }}>
-        {/* Metric Scope */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', border: '2px solid var(--border-color)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
-            {['all-time', 'monthly', 'weekly'].map((p) => (
-              <button
-                key={p}
-                onClick={() => setPeriod(p)}
-                style={{
-                  padding: '0.5rem 1rem',
-                  fontWeight: 700,
-                  fontSize: '0.78rem',
-                  textTransform: 'uppercase',
-                  background: period === p ? 'var(--brand-primary)' : 'var(--card-bg)',
-                  color: period === p ? '#FFFFFF' : 'var(--text-primary)',
-                  borderRight: p !== 'weekly' ? '2px solid var(--border-color)' : 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                {p.replace('-', ' ')}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', border: '2px solid var(--border-color)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
-            {['xp', 'challenges', 'streak'].map((m) => (
-              <button
-                key={m}
-                onClick={() => setMetric(m)}
-                style={{
-                  padding: '0.5rem 1rem',
-                  fontWeight: 700,
-                  fontSize: '0.78rem',
-                  textTransform: 'uppercase',
-                  background: metric === m ? 'var(--success)' : 'var(--card-bg)',
-                  color: metric === m ? 'var(--text-primary)' : 'var(--text-primary)',
-                  borderRight: m !== 'streak' ? '2px solid var(--border-color)' : 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                {m === 'xp' ? 'XP' : m === 'challenges' ? 'Challenges' : 'Streaks'}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Grade Filter */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <label style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Filter Grade:</label>
-          <select
-            value={grade}
-            onChange={(e) => setGrade(e.target.value)}
-            style={{
-              padding: '0.45rem 1rem',
-              fontWeight: 700,
-              fontSize: '0.85rem',
-              border: '2px solid var(--border-color)',
-              borderRadius: 'var(--radius-sm)',
-              background: 'var(--card-bg)',
-              color: 'var(--text-primary)'
-            }}
-          >
-            <option value="">All Grades</option>
-            <option value="Grade 5">Grade 5</option>
-            <option value="Grade 6">Grade 6</option>
-            <option value="Grade 7">Grade 7</option>
-            <option value="Grade 8">Grade 8</option>
-            <option value="Grade 9">Grade 9</option>
-            <option value="Grade 10">Grade 10</option>
-          </select>
+    <div className="overview-container">
+      <div className="ins-head">
+        <div className="ins-head__text">
+          <h1 className="page-title">Leaderboard</h1>
+          <p className="page-subtitle">
+            {period === 'all_time'
+              ? 'Who has earned the most since they joined.'
+              : `Who earned the most XP ${period === 'weekly' ? 'in the last 7 days' : 'in the last 30 days'}. A fresh start for everyone.`}
+          </p>
         </div>
       </div>
+
+      <div className="ins-toolbar">
+        <div className="ins-seg" role="group" aria-label="Period">
+          {PERIODS.map((p) => (
+            <button key={p.value} type="button" aria-pressed={period === p.value} onClick={() => changeFilter(setPeriod)(p.value)}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <div className="ins-seg" role="group" aria-label="Rank by">
+          {METRICS.map((m) => (
+            <button key={m.value} type="button" aria-pressed={effectiveMetric === m.value}
+              disabled={period !== 'all_time' && m.value !== 'xp'}
+              title={period !== 'all_time' && m.value !== 'xp' ? 'Weekly and monthly boards rank by XP' : undefined}
+              onClick={() => changeFilter(setMetric)(m.value)}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <select className="gm-input" style={{ width: 'auto', padding: '0.45rem 0.8rem', fontSize: '0.85rem', fontWeight: 700 }}
+          value={grade} onChange={(e) => changeFilter(setGrade)(e.target.value)} aria-label="Grade">
+          <option value="">All grades</option>
+          {GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
+        </select>
+      </div>
+
+      {error && <p style={{ color: 'var(--error)', margin: 0 }}>{error}</p>}
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '4rem' }}>
-          <p style={{ fontWeight: 700, fontSize: '1.2rem', color: 'var(--text-muted)' }}>Loading Rankings...</p>
-        </div>
-      ) : leaderboard.length === 0 ? (
-        <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center' }}>
-          <i className="fa-solid fa-ranking-star" aria-hidden="true" style={{ fontSize: '2rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }} />
-          <p style={{ fontWeight: 700, margin: '0 0 0.25rem' }}>No rankings yet</p>
-          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Try another period or grade, or check back once students have earned XP.</p>
+        <SkeletonCardGrid count={3} minWidth={200} gap="1rem" />
+      ) : rows.length === 0 ? (
+        <div className="ins-panel ins-empty">
+          <i className="fa-solid fa-ranking-star" />
+          <strong>No one on this board yet</strong>
+          <p>
+            {grade || period !== 'all_time'
+              ? 'Try another period or grade.'
+              : 'Students appear here as soon as they earn XP.'}
+          </p>
         </div>
       ) : (
         <>
-          {/* 🏅 Olympic Podium Layout */}
-          {page === 1 && topThree.length > 0 && (
-            <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'flex-end',
-              gap: '1.5rem',
-              marginBottom: '3rem',
-              marginTop: '1.5rem',
-              flexWrap: 'wrap'
-            }}>
-              {podiumOrder.map((student) => {
-                const isFirst = student.displayRank === 1;
-                const isSecond = student.displayRank === 2;
-                
-                // Color themes
-                const podiumColor = isFirst ? '#FCD34D' : isSecond ? '#E2E8F0' : '#FDBA74';
-                const textColor = '#1C1917';
-                const height = isFirst ? '200px' : isSecond ? '160px' : '130px';
-
-                return (
-                  <div
-                    key={student.studentName}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      width: '180px'
-                    }}
-                  >
-                    {/* Avatar Bubble */}
-                    <div style={{
-                      width: '64px',
-                      height: '64px',
-                      borderRadius: '50%',
-                      background: 'var(--card-bg)',
-                      border: '3px solid var(--border-color)',
-                      boxShadow: 'var(--shadow-sm)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 800,
-                      fontSize: '1.5rem',
-                      marginBottom: '0.75rem',
-                      position: 'relative'
-                    }}>
-                      {student.studentName.slice(0, 2).toUpperCase()}
-                      <span style={{
-                        position: 'absolute',
-                        top: '-10px',
-                        right: '-5px',
-                        fontSize: '1.2rem'
-                      }}>
-                        {isFirst ? '👑' : student.displayRank === 2 ? '🥈' : '🥉'}
-                      </span>
-                    </div>
-
-                    <h4 style={{ fontSize: '0.9rem', fontWeight: 700, margin: '0 0 0.15rem', textAlign: 'center', fontFamily: 'var(--font-heading)' }}>
-                      {student.studentName}
-                    </h4>
-                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, margin: '0 0 0.5rem' }}>
-                      {student.grade || 'No Grade'} • LVL {student.level || 1}
-                    </p>
-
-                    {/* Pedestal Block */}
-                    <div style={{
-                      width: '100%',
-                      height: height,
-                      background: podiumColor,
-                      color: textColor,
-                      border: '3px solid var(--border-color)',
-                      boxShadow: 'var(--shadow-md)',
-                      borderRadius: 'var(--radius-sm) var(--radius-sm) 0 0',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '1rem',
-                      textAlign: 'center'
-                    }}>
-                      <span style={{ fontSize: '2.5rem', fontWeight: 900, fontFamily: 'var(--font-heading)' }}>
-                        {student.displayRank}
-                      </span>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>
-                        {getLeaderboardMetricValue(student)}
-                      </span>
-                      <span style={{ fontSize: '0.68rem', opacity: 0.8, fontWeight: 700, marginTop: '4px' }}>
-                        <i className="fa-solid fa-medal" aria-hidden="true" /> {student.badgesCount || 0} Badges
-                      </span>
-                    </div>
+          {podium.length > 0 && (
+            <div className="gm-podium" aria-label="Top three">
+              {podium.map((row, i) => (
+                <div key={row.studentProfileId || row.userId || i} className={`gm-podium__place is-${i + 1}${isMe(row) ? ' is-me' : ''}`}>
+                  <span className="gm-podium__avatar" aria-hidden="true">
+                    {i === 0 && <i className="fa-solid fa-crown" />}
+                    {initialsOf(row.studentName)}
+                  </span>
+                  <span className="gm-podium__name">{row.studentName}</span>
+                  <span className="gm-podium__sub">{row.grade || 'No grade'} · Level {row.level || 1}</span>
+                  <div className="gm-podium__block">
+                    <span className="gm-podium__rank">{row.rank ?? i + 1}</span>
+                    <span className="gm-podium__score">{metricDef.score(row)}</span>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )}
 
-          {/* 📊 Ranking Table */}
-          <div className="glass-panel" style={{ overflow: 'hidden', marginBottom: '2rem' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontFamily: 'var(--font-body)' }}>
-              <thead>
-                <tr style={{ borderBottom: '3px solid var(--border-color)', background: 'var(--bg-secondary)' }}>
-                  <th style={{ padding: '1rem', fontWeight: 800, fontSize: '0.82rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Rank</th>
-                  <th style={{ padding: '1rem', fontWeight: 800, fontSize: '0.82rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Student</th>
-                  <th style={{ padding: '1rem', fontWeight: 800, fontSize: '0.82rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Grade</th>
-                  <th style={{ padding: '1rem', fontWeight: 800, fontSize: '0.82rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Level</th>
-                  <th style={{ padding: '1rem', fontWeight: 800, fontSize: '0.82rem', textTransform: 'uppercase', color: 'var(--text-muted)', textAlign: 'right' }}>Streak</th>
-                  <th style={{ padding: '1rem', fontWeight: 800, fontSize: '0.82rem', textTransform: 'uppercase', color: 'var(--text-muted)', textAlign: 'right' }}>Badges</th>
-                  <th style={{ padding: '1rem', fontWeight: 800, fontSize: '0.82rem', textTransform: 'uppercase', color: 'var(--text-muted)', textAlign: 'right' }}>{getMetricLabel()}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(page === 1 ? remainingStudents : leaderboard).map((student, idx) => {
-                  const actualRank = page === 1 ? idx + 4 : (page - 1) * limit + idx + 1;
+          {rest.length > 0 && (
+            <section className="ins-panel" aria-label="Rankings">
+              <ol className="gm-ranks">
+                {rest.map((row, i) => {
+                  const rank = row.rank ?? (page === 1 ? i + 4 : (page - 1) * LIMIT + i + 1);
                   return (
-                    <tr
-                      key={student.studentName + '-' + actualRank}
-                      style={{
-                        borderBottom: '2px solid var(--border-color)',
-                        background: user?.FullName === student.studentName ? 'var(--brand-light)' : 'transparent',
-                        transition: 'background 0.1s ease'
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-secondary)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = user?.FullName === student.studentName ? 'var(--brand-light)' : 'transparent'; }}
-                    >
-                      <td style={{ padding: '1rem', fontWeight: 800 }}>#{actualRank}</td>
-                      <td style={{ padding: '1rem', fontWeight: 700 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <div style={{
-                            width: '28px', height: '28px', borderRadius: '50%',
-                            background: 'var(--accent-orange)', border: '2px solid var(--border-color)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '0.75rem', fontWeight: 800
-                          }}>
-                            {student.studentName.slice(0, 2).toUpperCase()}
-                          </div>
-                          {student.studentName}
-                        </div>
-                      </td>
-                      <td style={{ padding: '1rem', fontWeight: 600 }}>{student.grade || '—'}</td>
-                      <td style={{ padding: '1rem' }}>
-                        <span className="nb-badge nb-badge-orange">LVL {student.level || 1}</span>
-                      </td>
-                      <td style={{ padding: '1rem', fontWeight: 700, textAlign: 'right' }}>🔥 {student.currentStreak || 0}</td>
-                      <td style={{ padding: '1rem', fontWeight: 700, textAlign: 'right' }}>🎖️ {student.badgesCount || 0}</td>
-                      <td style={{ padding: '1rem', fontWeight: 800, textAlign: 'right', color: 'var(--brand-primary)' }}>
-                        {getLeaderboardMetricValue(student)}
-                      </td>
-                    </tr>
+                    <li key={row.studentProfileId || row.userId || rank}>
+                      <div className={`gm-rank${isMe(row) ? ' is-me' : ''}`}>
+                        <span className="gm-rank__num">#{rank}</span>
+                        <span className="gm-rank__who tone-student">
+                          <span className="ins-avatar" aria-hidden="true">{initialsOf(row.studentName)}</span>
+                          <span className="ins-person__text">
+                            <strong>{row.studentName}{isMe(row) ? ' (you)' : ''}</strong>
+                            <small>{row.grade || 'No grade'} · Level {row.level || 1}</small>
+                          </span>
+                        </span>
+                        <span className="gm-rank__facts">
+                          <span title="Current streak"><i className="fa-solid fa-fire" style={{ color: 'var(--gm-streak)' }} />{row.currentStreak || 0}</span>
+                          <span title="Badges"><i className="fa-solid fa-medal" style={{ color: 'var(--gm-badge)' }} />{row.badgeCount ?? 0}</span>
+                        </span>
+                        <span className="gm-rank__score">{metricDef.score(row)}</span>
+                      </div>
+                    </li>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
+              </ol>
+            </section>
+          )}
 
-          {/* Pagination */}
           {totalPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '1.5rem' }}>
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage(page - 1)}
-                className="nb-btn nb-btn-secondary"
-                style={{ opacity: page <= 1 ? 0.5 : 1, cursor: page <= 1 ? 'not-allowed' : 'pointer' }}
-              >
-                ◀ Prev
+            <div className="gm-actions" style={{ justifyContent: 'center' }}>
+              <button type="button" className="nb-btn nb-btn-secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                <i className="fa-solid fa-chevron-left" /> Previous
               </button>
-              <span style={{ alignSelf: 'center', fontWeight: 700, fontSize: '0.9rem' }}>
-                Page {page} of {totalPages}
-              </span>
-              <button
-                disabled={page >= totalPages}
-                onClick={() => setPage(page + 1)}
-                className="nb-btn nb-btn-secondary"
-                style={{ opacity: page >= totalPages ? 0.5 : 1, cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}
-              >
-                Next ▶
+              <span className="ins-count">Page {page} of {totalPages}</span>
+              <button type="button" className="nb-btn nb-btn-secondary" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+                Next <i className="fa-solid fa-chevron-right" />
               </button>
             </div>
           )}
         </>
       )}
 
-      {/* 📌 Sticky User Rank Bar (Students only) */}
-      {user?.role === 'student' && myRank && (
-        // Sticky inside the content column rather than fixed to the window:
-        // the fixed version assumed a 260px sidebar and slid underneath it
-        // (and under the collapsed one), covering Log out.
-        <div style={{
-          position: 'sticky',
-          bottom: '1rem',
-          marginTop: '1.5rem',
-          background: 'var(--card-bg)',
-          border: 'var(--card-border)',
-          borderRadius: 'var(--radius-md)',
-          padding: '0.75rem 1.5rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          boxShadow: 'var(--shadow-sm)',
-          zIndex: 20,
-          fontFamily: 'var(--font-body)'
-        }}
-        className="sticky-rank-bar"
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <i className="fa-solid fa-bullseye" aria-hidden="true" style={{ fontSize: '1.4rem', color: 'var(--brand-primary)' }} />
-            <div>
-              <p style={{ margin: 0, fontSize: '0.72rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)' }}>Your Rank</p>
-              <p style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>#{myRank.rank || '—'}</p>
-            </div>
+      {/* Where the signed-in student stands on this board. Sticky in the
+          content column, so it never slides under the sidebar. */}
+      {isStudent && !loading && (
+        <div className="gm-me-bar">
+          <div>
+            <i className="fa-solid fa-location-crosshairs" style={{ fontSize: '1.3rem', color: 'var(--brand-primary)' }} aria-hidden="true" />
+            {myRank ? (
+              <span><strong>#{myRank}</strong> of {total} {total === 1 ? 'student' : 'students'}</span>
+            ) : (
+              <span>You are not on this board yet. Earn some XP to join it.</span>
+            )}
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <p style={{ margin: 0, fontSize: '0.72rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)' }}>Score ({getMetricLabel()})</p>
-            <p style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--brand-primary)' }}>
-              {metric === 'xp' ? `${myRank.score || 0} XP` : metric === 'challenges' ? `${myRank.score || 0} Puzzles` : `🔥 ${myRank.score || 0} Days`}
-            </p>
-          </div>
+          {meRow && <span className="gm-rank__score">{metricDef.score(meRow)}</span>}
         </div>
       )}
-
     </div>
   );
 };

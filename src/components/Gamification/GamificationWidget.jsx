@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useApiRequest } from '../../hooks/useApiRequest';
 import { useSocket } from '../../context/SocketContext';
 import { useAuth } from '../../context/AuthContext';
+import './GamificationWidget.css';
 
 const GamificationWidget = () => {
   const { user } = useAuth();
@@ -77,18 +79,8 @@ const GamificationWidget = () => {
 
   if (loading) {
     return (
-      <div className="xp-widget is-loading" aria-hidden="true" style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: '6px 12px',
-        background: 'var(--bg-secondary)',
-        border: '2px solid var(--border-color)',
-        borderRadius: 'var(--radius-sm)',
-        height: '40px',
-        opacity: 0.7
-      }}>
-        <span style={{ fontSize: '0.8rem', fontWeight: 600 }}><i className="fa-solid fa-trophy" style={{ color: 'var(--text-muted)' }} /></span>
+      <div className="xp-widget is-loading" aria-hidden="true">
+        <i className="fa-solid fa-trophy" />
       </div>
     );
   }
@@ -98,97 +90,36 @@ const GamificationWidget = () => {
   // 100 XP per level
   const currentXPInLevel = profile.xp % 100;
   const progressPercent = Math.min(100, Math.max(0, currentXPInLevel));
+  const streak = profile.currentStreak || 0;
+  const best = Math.max(profile.longestStreak || 0, streak);
 
   return (
-    <div className="xp-widget" data-tour="xp" style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: '16px',
-      padding: '4px 12px',
-      background: 'var(--card-bg)',
-      border: '2px solid var(--border-color)',
-      borderRadius: 'var(--radius-sm)',
-      boxShadow: '2px 2px 0px 0px var(--shadow-color)',
-      height: '40px',
-      fontFamily: 'var(--font-body)',
-      userSelect: 'none'
-    }}>
-      {/* Level Badge */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
-        fontWeight: 800,
-        fontSize: '0.82rem',
-        color: 'var(--text-primary)',
-        textTransform: 'uppercase',
-      }}>
-        <i className="fa-solid fa-trophy" style={{ fontSize: '0.9rem', color: 'var(--warning, #eab308)' }} />
-        <span>LVL {profile.level}</span>
-      </div>
+    <Link
+      to="/dashboard/achievements"
+      className="xp-widget"
+      data-tour="xp"
+      aria-label={`Level ${profile.level}, ${currentXPInLevel} of 100 XP, ${streak} day streak, ${profile.badgeCount || 0} badges. Open my achievements`}
+    >
+      <span className="xp-widget__level">
+        <i className="fa-solid fa-trophy" aria-hidden="true" />
+        <span>Lv {profile.level}</span>
+      </span>
 
-      {/* XP Bar */}
-      <div className="xp-widget__bar" style={{
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        width: '90px',
-        gap: '2px'
-      }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          fontSize: '0.65rem',
-          fontWeight: 700,
-          color: 'var(--text-muted)'
-        }}>
-          <span>{currentXPInLevel}/100 XP</span>
-        </div>
-        <div className="nb-progress" style={{ height: '8px', border: '1.5px solid var(--border-color)' }}>
-          <div
-            className="nb-progress-fill"
-            style={{
-              width: `${progressPercent}%`,
-              background: 'var(--brand-primary)',
-              transition: 'width 0.4s ease'
-            }}
-          />
-        </div>
-      </div>
+      <span className="xp-widget__bar" aria-hidden="true">
+        <span className="xp-widget__xp">{currentXPInLevel}/100 XP</span>
+        <span className="xp-widget__track"><span style={{ width: `${progressPercent}%` }} /></span>
+      </span>
 
-      {/* Streak Fire */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-          fontWeight: 700,
-          fontSize: '0.82rem',
-          color: 'var(--text-primary)'
-        }}
-        title={`Current streak: ${profile.currentStreak} days (Record: ${profile.longestStreak} days)`}
-      >
-        <i className="fa-solid fa-fire" style={{ fontSize: '0.9rem', color: 'var(--accent-orange, #f97316)' }} />
-        <span>{profile.currentStreak}d</span>
-      </div>
+      <span className="xp-widget__streak" title={`Streak: ${streak} day${streak === 1 ? '' : 's'} (best ${best})`} aria-hidden="true">
+        <i className="fa-solid fa-fire" />
+        <span>{streak}</span>
+      </span>
 
-      {/* Badges Indicator */}
-      <div
-        className="xp-widget__badges"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-          fontWeight: 700,
-          fontSize: '0.82rem',
-          color: 'var(--text-primary)'
-        }}
-        title={`${profile.badgeCount} Badges earned`}
-      >
-        <i className="fa-solid fa-medal" style={{ fontSize: '0.9rem', color: 'var(--accent-rose, #ec4899)' }} />
-        <span>{profile.badgeCount}</span>
-      </div>
-    </div>
+      <span className="xp-widget__badges" title={`${profile.badgeCount || 0} badges`} aria-hidden="true">
+        <i className="fa-solid fa-medal" />
+        <span>{profile.badgeCount || 0}</span>
+      </span>
+    </Link>
   );
 };
 
