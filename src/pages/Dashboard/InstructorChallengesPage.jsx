@@ -1,6 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApiRequest } from '../../hooks/useApiRequest';
 import { safeUrl } from '../../utils/safeUrl';
+import { timeAgo } from '../../utils/timeAgo';
+import Modal from '../../components/Modal/Modal';
+import { SkeletonCardGrid } from '../../components/Skeleton/Skeleton';
+import './DashboardOverview.css';
+import './Insights.css';
+import './Gamification.css';
+
+const DIFFICULTY = {
+  easy: { label: 'Easy', className: 'gm-easy' },
+  medium: { label: 'Medium', className: 'gm-medium' },
+  hard: { label: 'Hard', className: 'gm-hard' },
+};
+
+const TYPE = {
+  coding: { label: 'Coding', icon: 'fa-solid fa-code' },
+  puzzle: { label: 'Puzzle', icon: 'fa-solid fa-puzzle-piece' },
+};
+
+const QUICK_SCORES = [100, 90, 75, 50, 25, 0];
+const emptyTestCase = () => ({ input: '', expectedOutput: '', isHidden: false });
+
+const initialsOf = (name = '') =>
+  name.split(/\s+/).filter(Boolean).map((part) => part[0]).join('').toUpperCase().slice(0, 2) || '?';
+
+const DiffChip = ({ difficulty }) => {
+  const d = DIFFICULTY[difficulty] || DIFFICULTY.easy;
+  return <span className={`gm-chip ${d.className}`}>{d.label}</span>;
+};
 
 const InstructorChallengesPage = () => {
   const { request } = useApiRequest();
@@ -8,18 +36,21 @@ const InstructorChallengesPage = () => {
   const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('grading'); // grading, manage
-  
-  // Grading states
+  const [notice, setNotice] = useState(null); // { tone, text }
+
+  // Grading
   const [gradingAttempt, setGradingAttempt] = useState(null);
   const [score, setScore] = useState(100);
   const [feedback, setFeedback] = useState('');
   const [gradingSubmitting, setGradingSubmitting] = useState(false);
 
-  // Manage states
+  // Create / edit
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingChallenge, setEditingChallenge] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [deleting, setDeleting] = useState(null);
 
-  // Form Fields
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState('coding'); // coding, puzzle
@@ -29,21 +60,19 @@ const InstructorChallengesPage = () => {
   const [tagsInput, setTagsInput] = useState('');
   const [isActive, setIsActive] = useState(true);
 
-  // Puzzle Specific Form Fields
   const [questionType, setQuestionType] = useState('multiple_choice'); // multiple_choice, fill_blank
   const [correctAnswer, setCorrectAnswer] = useState('');
   const [options, setOptions] = useState(['', '']);
 
-  // Coding Specific Form Fields
   const [starterCode, setStarterCode] = useState('');
   const [hints, setHints] = useState(['']);
-  const [testCases, setTestCases] = useState([{ input: 'default', expectedOutput: 'default', isHidden: false }]);
+  const [testCases, setTestCases] = useState([emptyTestCase()]);
 
   const fetchData = React.useCallback(async () => {
     setLoading(true);
     try {
       const [challengesRes, attemptsRes] = await Promise.all([
-        request('/api/v1/challenges'),
+        request('/api/v1/challenges?limit=200'),
         request('/api/v1/challenges/attempts')
       ]);
 
@@ -78,8 +107,9 @@ const InstructorChallengesPage = () => {
     setOptions(['', '']);
     setStarterCode('');
     setHints(['']);
-    setTestCases([{ input: 'default', expectedOutput: 'default', isHidden: false }]);
+    setTestCases([emptyTestCase()]);
     setEditingChallenge(null);
+    setFormError('');
   };
 
   const handleEdit = (challenge) => {
@@ -95,29 +125,35 @@ const InstructorChallengesPage = () => {
     setIsActive(challenge.isActive !== false);
 
     if (challenge.type === 'puzzle' && challenge.puzzleData) {
-      setQuestionType(challenge.puzzleData.questionType);
+      setQuestionType(challenge.puzzleData.questionType || 'multiple_choice');
+      // The server never sends the answer back, so it is typed again.
       setCorrectAnswer(challenge.puzzleData.correctAnswer || '');
-      setOptions(challenge.puzzleData.options || ['', '']);
+      setOptions(challenge.puzzleData.options?.length ? challenge.puzzleData.options : ['', '']);
     } else if (challenge.type === 'coding' && challenge.codingData) {
       setStarterCode(challenge.codingData.starterCode || '');
       setHints(challenge.codingData.hints && challenge.codingData.hints.length > 0 ? challenge.codingData.hints : ['']);
-      setTestCases(challenge.codingData.testCases || [{ input: 'default', expectedOutput: 'default', isHidden: false }]);
+      setTestCases(challenge.codingData.testCases?.length ? challenge.codingData.testCases : [emptyTestCase()]);
     }
     setShowCreateForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this challenge?')) return;
+  const confirmDelete = async () => {
+    if (!deleting) return;
     try {
-      await request(`/api/v1/challenges/${id}`, 'DELETE');
+      await request(`/api/v1/challenges/${deleting._id}`, 'DELETE');
+      setNotice({ tone: 'var(--success)', text: `“${deleting.title}” was deleted.` });
       fetchData();
     } catch (err) {
-      alert(`Delete failed: ${err.message}`);
+      setNotice({ tone: 'var(--error)', text: `Could not delete: ${err.message}` });
+    } finally {
+      setDeleting(null);
     }
   };
 
   const handleCreateOrUpdateChallenge = async (e) => {
     e.preventDefault();
+    setFormError('');
 
     const tags = tagsInput
       .split(',')
@@ -136,10 +172,15 @@ const InstructorChallengesPage = () => {
     };
 
     if (type === 'puzzle') {
+      const cleanOptions = options.map((o) => o.trim()).filter(Boolean);
+      if (questionType === 'multiple_choice' && !cleanOptions.includes(correctAnswer.trim())) {
+        setFormError('The correct answer must be one of the options, written the same way.');
+        return;
+      }
       body.puzzleData = {
         questionType,
         correctAnswer: correctAnswer.trim(),
-        ...(questionType === 'multiple_choice' ? { options: options.filter(o => o.trim() !== '') } : {})
+        ...(questionType === 'multiple_choice' ? { options: cleanOptions } : {})
       };
     } else {
       body.codingData = {
@@ -147,23 +188,28 @@ const InstructorChallengesPage = () => {
         hints: hints.filter(h => h.trim() !== ''),
         testCases: testCases.filter(tc => tc.input.trim() !== '' && tc.expectedOutput.trim() !== '')
       };
+      if (body.codingData.testCases.length === 0) {
+        setFormError('Add at least one test case with an input and an expected output.');
+        return;
+      }
     }
 
+    setSaving(true);
     try {
-      let res;
-      if (editingChallenge) {
-        res = await request(`/api/v1/challenges/${editingChallenge._id}`, 'PATCH', body);
-      } else {
-        res = await request('/api/v1/challenges', 'POST', body);
-      }
+      const res = editingChallenge
+        ? await request(`/api/v1/challenges/${editingChallenge._id}`, 'PATCH', body)
+        : await request('/api/v1/challenges', 'POST', body);
 
       if (res.status === 'success') {
+        setNotice({ tone: 'var(--success)', text: editingChallenge ? `“${title}” was updated.` : `“${title}” is ${isActive ? 'live for students' : 'saved as a draft'}.` });
         setShowCreateForm(false);
         resetForm();
         fetchData();
       }
     } catch (err) {
-      alert(`Save failed: ${err.message}`);
+      setFormError(err.message || 'Could not save the challenge.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -179,592 +225,425 @@ const InstructorChallengesPage = () => {
       });
 
       if (res.status === 'success') {
+        const name = gradingAttempt.studentProfileId?.user?.FullName || 'The student';
+        setNotice({ tone: 'var(--success)', text: `Grade sent. ${name} scored ${score}/100.` });
         setGradingAttempt(null);
         setFeedback('');
         setScore(100);
         fetchData();
       }
     } catch (err) {
-      alert(`Grading failed: ${err.message}`);
+      setNotice({ tone: 'var(--error)', text: `Could not save the grade: ${err.message}` });
     } finally {
       setGradingSubmitting(false);
     }
   };
 
-  // Puzzle option handlers
-  const addOptionField = () => setOptions([...options, '']);
-  const removeOptionField = (index) => setOptions(options.filter((_, idx) => idx !== index));
-  const updateOptionValue = (val, index) => {
-    const updated = [...options];
-    updated[index] = val;
-    setOptions(updated);
+  const updateAt = (list, setList, index, value) => {
+    const updated = [...list];
+    updated[index] = value;
+    setList(updated);
   };
 
-  // Coding hint handlers
-  const addHintField = () => setHints([...hints, '']);
-  const removeHintField = (index) => setHints(hints.filter((_, idx) => idx !== index));
-  const updateHintValue = (val, index) => {
-    const updated = [...hints];
-    updated[index] = val;
-    setHints(updated);
-  };
-
-  // Coding testcase handlers
-  const addTestCase = () => setTestCases([...testCases, { input: '', expectedOutput: '', isHidden: false }]);
-  const removeTestCase = (index) => setTestCases(testCases.filter((_, idx) => idx !== index));
-  const updateTestCase = (field, val, index) => {
-    const updated = [...testCases];
-    updated[index] = { ...updated[index], [field]: val };
-    setTestCases(updated);
-  };
-
-  // Filters for grading desk
   const pendingAttempts = attempts.filter(a => a.status === 'pending');
 
+  // How each challenge is doing with students.
+  const statsFor = useMemo(() => {
+    const map = new Map();
+    attempts.forEach((a) => {
+      const id = a.challenge?._id || a.challenge;
+      const entry = map.get(id) || { tried: 0, solved: 0 };
+      if (a.status !== 'in_progress') entry.tried += 1;
+      if (a.status === 'correct' || (a.status === 'graded' && a.score > 0)) entry.solved += 1;
+      map.set(id, entry);
+    });
+    return (id) => map.get(id) || { tried: 0, solved: 0 };
+  }, [attempts]);
+
+  const switchTab = (tab) => {
+    setActiveTab(tab);
+    setGradingAttempt(null);
+    setShowCreateForm(false);
+    setNotice(null);
+  };
+
   return (
-    <div style={{ paddingBottom: '30px' }}>
-      <div style={{ marginBottom: '2rem' }}>
-        <h1 className="page-title">👨‍🏫 Instructor Challenge Desk</h1>
-        <p className="page-subtitle">Manage coding puzzles, review student attempts, and grade submissions.</p>
+    <div className="overview-container">
+      <div className="ins-head">
+        <div className="ins-head__text">
+          <h1 className="page-title">Challenge desk</h1>
+          <p className="page-subtitle">Grade coding answers and write the puzzles and problems students solve for XP.</p>
+        </div>
+        {activeTab === 'manage' && !showCreateForm && (
+          <button type="button" onClick={() => { resetForm(); setShowCreateForm(true); }} className="nb-btn nb-btn-primary">
+            <i className="fa-solid fa-plus" style={{ marginRight: '0.4rem' }} />New challenge
+          </button>
+        )}
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
-        <button
-          onClick={() => { setActiveTab('grading'); setGradingAttempt(null); }}
-          className="nb-btn"
-          style={{
-            background: activeTab === 'grading' ? 'var(--brand-primary)' : 'var(--card-bg)',
-            color: activeTab === 'grading' ? '#FFFFFF' : 'var(--text-primary)'
-          }}
-        >
-          📝 Grading Desk ({pendingAttempts.length})
+      <div className="ins-seg" role="tablist" aria-label="Desk" style={{ alignSelf: 'flex-start' }}>
+        <button type="button" role="tab" aria-selected={activeTab === 'grading'} aria-pressed={activeTab === 'grading'} onClick={() => switchTab('grading')}>
+          <i className="fa-solid fa-inbox" style={{ marginRight: '0.4rem' }} />To grade
+          {!loading && <span className="audit-count">{pendingAttempts.length}</span>}
         </button>
-        <button
-          onClick={() => { setActiveTab('manage'); setShowCreateForm(false); }}
-          className="nb-btn"
-          style={{
-            background: activeTab === 'manage' ? 'var(--brand-primary)' : 'var(--card-bg)',
-            color: activeTab === 'manage' ? '#FFFFFF' : 'var(--text-primary)'
-          }}
-        >
-          🛠️ Manage Challenges ({challenges.length})
+        <button type="button" role="tab" aria-selected={activeTab === 'manage'} aria-pressed={activeTab === 'manage'} onClick={() => switchTab('manage')}>
+          <i className="fa-solid fa-puzzle-piece" style={{ marginRight: '0.4rem' }} />Challenges
+          {!loading && <span className="audit-count">{challenges.length}</span>}
         </button>
       </div>
+
+      {notice && (
+        <div className="gm-notice" style={{ margin: 0, background: `color-mix(in srgb, ${notice.tone} 12%, transparent)` }} role="status">
+          <i className={notice.tone === 'var(--error)' ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-circle-check'} style={{ color: notice.tone }} />
+          <span style={{ flex: 1 }}>{notice.text}</span>
+          <button type="button" className="socket-toast__close" style={{ margin: '-0.35rem -0.35rem 0 0' }} aria-label="Dismiss" onClick={() => setNotice(null)}>
+            <i className="fa-solid fa-xmark" />
+          </button>
+        </div>
+      )}
 
       {loading && !gradingAttempt && !showCreateForm ? (
-        <div style={{ textAlign: 'center', padding: '4rem' }}>
-          <p style={{ fontWeight: 700, fontSize: '1.2rem', color: 'var(--text-muted)' }}>Loading Desk...</p>
-        </div>
+        <SkeletonCardGrid count={3} minWidth={290} gap="1rem" />
       ) : activeTab === 'grading' ? (
-        // ── GRADING DESK ──
-        <>
-          {gradingAttempt ? (
-            // Grade editor subview
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
-              {/* Student Submission Card */}
-              <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-                  <button onClick={() => setGradingAttempt(null)} className="nb-btn nb-btn-secondary" style={{ padding: '0.45rem 1rem' }}>
-                    ← Back to Grading List
-                  </button>
-                  <span className="nb-badge">
-                    Attempt #{gradingAttempt._id.slice(-6)}
+        gradingAttempt ? (
+          /* ══════ One answer to grade ══════ */
+          <>
+            <button type="button" className="ins-back" style={{ alignSelf: 'flex-start', marginBottom: '-0.75rem' }} onClick={() => setGradingAttempt(null)}>
+              <i className="fa-solid fa-arrow-left" /> Everything to grade
+            </button>
+            <div className="gm-solve">
+              <section className="ins-panel" aria-labelledby="submission-title">
+                <div className="ins-panel__head">
+                  <h2 id="submission-title"><i className="fa-solid fa-code" />{gradingAttempt.challenge?.title || 'Challenge'}</h2>
+                  <DiffChip difficulty={gradingAttempt.challenge?.difficulty} />
+                </div>
+                <div className="ins-person tone-student" style={{ cursor: 'default', padding: '0 0 0.85rem' }}>
+                  <span className="ins-avatar" aria-hidden="true">{initialsOf(gradingAttempt.studentProfileId?.user?.FullName)}</span>
+                  <span className="ins-person__text">
+                    <strong>{gradingAttempt.studentProfileId?.user?.FullName || 'Unknown student'}</strong>
+                    <small>
+                      Sent {timeAgo(gradingAttempt.completedAt || gradingAttempt.updatedAt)}
+                      {' · '}{gradingAttempt.hintsUsed || 0} hint{gradingAttempt.hintsUsed === 1 ? '' : 's'} used
+                    </small>
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                  <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', margin: 0 }}>Submission Details</h3>
-                  <p style={{ fontSize: '0.88rem', margin: 0 }}>
-                    <strong>Student:</strong> {gradingAttempt.studentProfileId?.user?.FullName || 'Unknown Student'}
-                  </p>
-                  <p style={{ fontSize: '0.88rem', margin: 0 }}>
-                    <strong>Challenge:</strong> {gradingAttempt.challenge?.title || 'Unknown Challenge'}
-                  </p>
-                  <p style={{ fontSize: '0.88rem', margin: 0 }}>
-                    <strong>Hints Used:</strong> {gradingAttempt.hintsUsed || 0}
-                  </p>
-                  <p style={{ fontSize: '0.88rem', margin: 0 }}>
-                    <strong>Time Spent:</strong> {Math.floor((gradingAttempt.timeSpent || 0) / 60)}m {((gradingAttempt.timeSpent || 0) % 60)}s
-                  </p>
-                </div>
+                <h3 className="gm-label" style={{ marginTop: 0 }}>Their code</h3>
+                <pre className="gm-code" style={{ minHeight: 0, margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                  {gradingAttempt.submittedCode || 'No code pasted. See the links below.'}
+                </pre>
 
-                <div style={{ marginBottom: '1.5rem' }}>
-                  <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Submitted Code:</h4>
-                  <pre style={{
-                    padding: '1rem',
-                    background: 'var(--bg-secondary)',
-                    border: '2px solid var(--border-color)',
-                    borderRadius: 'var(--radius-sm)',
-                    fontSize: '0.8rem',
-                    fontFamily: 'monospace',
-                    overflowX: 'auto',
-                    whiteSpace: 'pre-wrap'
-                  }}>
-                    {gradingAttempt.submittedCode || '// No code submitted'}
-                  </pre>
-                </div>
-
-                {gradingAttempt.codeLinks && gradingAttempt.codeLinks.length > 0 && (
-                  <div>
-                    <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Submission Links:</h4>
-                    <ul style={{ paddingLeft: '1.25rem', fontSize: '0.85rem', margin: 0 }}>
+                {gradingAttempt.codeLinks?.length > 0 && (
+                  <>
+                    <h3 className="gm-label">Links</h3>
+                    <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
                       {gradingAttempt.codeLinks.map((link, idx) => (
                         <li key={idx}>
-                          <a href={safeUrl(link.url)} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', fontWeight: 600 }}>
-                            {link.name || 'Repository Link'}
+                          <a href={safeUrl(link.url)} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 600 }}>
+                            {link.name || 'Repository'} <i className="fa-solid fa-arrow-up-right-from-square" style={{ fontSize: '0.75rem' }} />
                           </a>
                         </li>
                       ))}
                     </ul>
-                  </div>
+                  </>
                 )}
-              </div>
+              </section>
 
-              {/* Grading Input Form */}
-              <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                <h3 style={{ fontFamily: 'var(--font-heading)', fontWeight: 400, fontSize: '1.25rem', marginBottom: '1rem' }}>Grade Submission</h3>
-                <form onSubmit={handleSubmitGrade} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)' }}>Score (0 - 100):</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={score}
-                      onChange={(e) => setScore(e.target.value)}
-                      style={{
-                        padding: '0.55rem',
-                        border: '2px solid var(--border-color)',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: '0.9rem',
-                        fontWeight: 700,
-                        background: 'var(--bg-secondary)',
-                        color: 'var(--text-primary)'
-                      }}
-                      required
-                    />
+              <section className="ins-panel" aria-labelledby="grade-title">
+                <div className="ins-panel__head">
+                  <h2 id="grade-title" style={{ '--tone': 'var(--success)' }}><i className="fa-solid fa-marker" />Your grade</h2>
+                </div>
+                <form onSubmit={handleSubmitGrade}>
+                  <label className="gm-field">
+                    <span>Score out of 100</span>
+                    <input className="gm-input" type="number" min="0" max="100" value={score}
+                      onChange={(e) => setScore(e.target.value)} required style={{ maxWidth: '9rem', fontWeight: 800 }} />
+                  </label>
+                  <div className="gm-tags" style={{ marginTop: '-0.4rem', marginBottom: '1rem' }} role="group" aria-label="Quick scores">
+                    {QUICK_SCORES.map((s) => (
+                      <button key={s} type="button" className="gm-chip" onClick={() => setScore(s)}
+                        style={{ border: 0, cursor: 'pointer', '--tone': Number(score) === s ? 'var(--brand-primary)' : 'var(--text-muted)' }}>
+                        {s}
+                      </button>
+                    ))}
                   </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)' }}>Written Feedback:</label>
-                    <textarea
-                      rows={6}
-                      value={feedback}
-                      onChange={(e) => setFeedback(e.target.value)}
-                      placeholder="Add helpful grading comments..."
-                      style={{
-                        padding: '0.65rem',
-                        border: '2px solid var(--border-color)',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: '0.85rem',
-                        background: 'var(--bg-secondary)',
-                        color: 'var(--text-primary)',
-                        resize: 'vertical'
-                      }}
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={gradingSubmitting}
-                    className="nb-btn nb-btn-primary"
-                    style={{ alignSelf: 'flex-start', opacity: gradingSubmitting ? 0.6 : 1 }}
-                  >
-                    {gradingSubmitting ? 'Submitting Grade...' : 'Post Final Grade'}
+                  <p className="ins-panel__meta" style={{ margin: '0 0 1rem' }}>
+                    The student earns {Math.max(Math.floor((gradingAttempt.challenge?.xpReward || 0) * (Number(score) || 0) / 100 * (1 - Math.min((gradingAttempt.hintsUsed || 0) * 0.2, 0.8))), Number(score) > 0 ? 1 : 0)} XP for this score
+                    {gradingAttempt.hintsUsed ? ', after the hint penalty' : ''}.
+                  </p>
+                  <label className="gm-field">
+                    <span>Feedback for the student</span>
+                    <textarea className="gm-input" rows={6} value={feedback} onChange={(e) => setFeedback(e.target.value)}
+                      placeholder="What went well, and one thing to try next time" style={{ resize: 'vertical' }} />
+                  </label>
+                  <button type="submit" disabled={gradingSubmitting} className="nb-btn nb-btn-primary">
+                    {gradingSubmitting ? 'Sending…' : 'Send grade'}
                   </button>
                 </form>
+              </section>
+            </div>
+          </>
+        ) : pendingAttempts.length === 0 ? (
+          <div className="ins-panel ins-empty">
+            <i className="fa-solid fa-mug-hot" />
+            <strong>Nothing to grade</strong>
+            <p>Coding answers appear here as students send them. Puzzles are marked automatically.</p>
+          </div>
+        ) : (
+          /* ══════ Waiting to be graded ══════ */
+          <section className="ins-panel" aria-label="Waiting to be graded">
+            <ul className="ins-people">
+              {[...pendingAttempts]
+                .sort((a, b) => new Date(a.completedAt || a.updatedAt) - new Date(b.completedAt || b.updatedAt))
+                .map((attempt) => (
+                  <li key={attempt._id}>
+                    <button type="button" className="ins-person tone-student" onClick={() => { setGradingAttempt(attempt); setScore(100); setFeedback(''); setNotice(null); }}>
+                      <span className="ins-avatar" aria-hidden="true">{initialsOf(attempt.studentProfileId?.user?.FullName)}</span>
+                      <span className="ins-person__text">
+                        <strong>{attempt.studentProfileId?.user?.FullName || 'Unknown student'}</strong>
+                        <small>{attempt.challenge?.title || 'Challenge'} · sent {timeAgo(attempt.completedAt || attempt.updatedAt)}</small>
+                      </span>
+                      <DiffChip difficulty={attempt.challenge?.difficulty} />
+                      <span className="gm-status is-action">Grade <i className="fa-solid fa-arrow-right" /></span>
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          </section>
+        )
+      ) : showCreateForm ? (
+        /* ══════ Create or edit ══════ */
+        <section className="ins-panel" style={{ maxWidth: 860 }} aria-labelledby="form-title">
+          <div className="ins-panel__head">
+            <h2 id="form-title"><i className={editingChallenge ? 'fa-solid fa-pen' : 'fa-solid fa-plus'} />{editingChallenge ? 'Edit challenge' : 'New challenge'}</h2>
+            <button type="button" className="ins-link" onClick={() => { setShowCreateForm(false); resetForm(); }}>Cancel</button>
+          </div>
+
+          <form onSubmit={handleCreateOrUpdateChallenge}>
+            <div className="ins-grid-2" style={{ gap: '0 1rem' }}>
+              <label className="gm-field">
+                <span>Title</span>
+                <input className="gm-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Reverse a string" required minLength={3} />
+              </label>
+              <div className="gm-field">
+                <span>Kind</span>
+                <div className="ins-seg" role="group" aria-label="Kind">
+                  {Object.entries(TYPE).map(([value, t]) => (
+                    <button key={value} type="button" aria-pressed={type === value} disabled={!!editingChallenge}
+                      title={editingChallenge ? 'The kind cannot change after a challenge is created' : undefined}
+                      onClick={() => setType(value)}>
+                      <i className={t.icon} style={{ marginRight: '0.35rem' }} />{t.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          ) : (
-            // Attempts List
-            <div className="glass-panel" style={{ overflow: 'hidden' }}>
-              {pendingAttempts.length === 0 ? (
-                <div style={{ padding: '3rem', textAlign: 'center' }}>
-                  <p style={{ fontSize: '2rem' }}>🎉</p>
-                  <p style={{ fontWeight: 700, color: 'var(--text-muted)' }}>All attempts have been graded! Zero pending.</p>
+
+            <label className="gm-field">
+              <span>The problem</span>
+              <textarea className="gm-input" rows={4} value={description} onChange={(e) => setDescription(e.target.value)}
+                placeholder="Explain exactly what to do, in words a student can follow" required minLength={10} style={{ resize: 'vertical' }} />
+            </label>
+
+            <div className="ins-grid-2" style={{ gap: '0 1rem' }}>
+              <div className="gm-field">
+                <span>Difficulty</span>
+                <div className="ins-seg" role="group" aria-label="Difficulty">
+                  {Object.entries(DIFFICULTY).map(([value, d]) => (
+                    <button key={value} type="button" aria-pressed={difficulty === value} onClick={() => setDifficulty(value)}>{d.label}</button>
+                  ))}
                 </div>
-              ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontFamily: 'var(--font-body)' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '3px solid var(--border-color)', background: 'var(--bg-secondary)' }}>
-                      <th style={{ padding: '1rem', fontWeight: 800, fontSize: '0.82rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Student</th>
-                      <th style={{ padding: '1rem', fontWeight: 800, fontSize: '0.82rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Challenge</th>
-                      <th style={{ padding: '1rem', fontWeight: 800, fontSize: '0.82rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Difficulty</th>
-                      <th style={{ padding: '1rem', fontWeight: 800, fontSize: '0.82rem', textTransform: 'uppercase', color: 'var(--text-muted)', textAlign: 'right' }}>Hints Used</th>
-                      <th style={{ padding: '1rem', fontWeight: 800, fontSize: '0.82rem', textTransform: 'uppercase', color: 'var(--text-muted)', textAlign: 'right' }}>Submitted</th>
-                      <th style={{ padding: '1rem', fontWeight: 800, fontSize: '0.82rem', textTransform: 'uppercase', color: 'var(--text-muted)', textAlign: 'center' }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pendingAttempts.map((attempt) => (
-                      <tr key={attempt._id} style={{ borderBottom: '2px solid var(--border-color)' }}>
-                        <td style={{ padding: '1rem', fontWeight: 700 }}>
-                          {attempt.studentProfileId?.user?.FullName || 'Unknown Student'}
-                        </td>
-                        <td style={{ padding: '1rem', fontWeight: 600 }}>
-                          {attempt.challenge?.title || 'Unknown Challenge'}
-                        </td>
-                        <td style={{ padding: '1rem' }}>
-                          <span className="nb-badge nb-badge-orange">
-                            {attempt.challenge?.difficulty || 'easy'}
-                          </span>
-                        </td>
-                        <td style={{ padding: '1rem', fontWeight: 700, textAlign: 'right' }}>
-                          {attempt.hintsUsed || 0}
-                        </td>
-                        <td style={{ padding: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'right' }}>
-                          {new Date(attempt.completedAt || attempt.startedAt).toLocaleDateString()}
-                        </td>
-                        <td style={{ padding: '1rem', textAlign: 'center' }}>
-                          <button
-                            onClick={() => setGradingAttempt(attempt)}
-                            className="nb-btn nb-btn-primary"
-                            style={{ padding: '0.35rem 0.75rem', fontSize: '0.72rem', fontWeight: 800 }}
-                          >
-                            Review & Grade
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          )}
-        </>
-      ) : (
-        // ── MANAGE CHALLENGES ──
-        <>
-          {showCreateForm ? (
-            // Challenge Creation Desk Form
-            <div className="glass-panel" style={{ padding: '1.5rem', maxWidth: '800px', margin: '0 auto' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-                <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.25rem', fontWeight: 400 }}>
-                  {editingChallenge ? 'Edit Challenge' : 'Create New Challenge'}
-                </h3>
-                <button onClick={() => { setShowCreateForm(false); resetForm(); }} className="nb-btn nb-btn-secondary" style={{ padding: '0.45rem 1rem' }}>
-                  Cancel
-                </button>
               </div>
+              <div className="gm-field">
+                <span>Visible to students</span>
+                <div className="ins-seg" role="group" aria-label="Visibility">
+                  <button type="button" aria-pressed={isActive} onClick={() => setIsActive(true)}>Live</button>
+                  <button type="button" aria-pressed={!isActive} onClick={() => setIsActive(false)}>Draft</button>
+                </div>
+              </div>
+              <label className="gm-field">
+                <span>XP reward</span>
+                <input className="gm-input" type="number" min="1" max="500" value={xpReward} onChange={(e) => setXpReward(e.target.value)} required />
+              </label>
+              <label className="gm-field">
+                <span>Time limit in minutes (0 for none)</span>
+                <input className="gm-input" type="number" min="0" value={timeLimit} onChange={(e) => setTimeLimit(e.target.value)} />
+              </label>
+            </div>
 
-              <form onSubmit={handleCreateOrUpdateChallenge} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  {/* Title */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Challenge Title:</label>
-                    <input
-                      type="text"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder="e.g. Reverse a String"
-                      style={{ padding: '0.55rem', border: '2px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontWeight: 600 }}
-                      required
-                    />
-                  </div>
+            <label className="gm-field">
+              <span>Topics, separated by commas</span>
+              <input className="gm-input" value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="e.g. loops, strings" />
+            </label>
 
-                  {/* Type */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Challenge Type:</label>
-                    <select
-                      value={type}
-                      onChange={(e) => setType(e.target.value)}
-                      disabled={!!editingChallenge} // backend type conversion can be risky
-                      style={{ padding: '0.55rem', border: '2px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontWeight: 700 }}
-                    >
-                      <option value="coding">Coding Challenge</option>
-                      <option value="puzzle">Quick Puzzle</option>
-                    </select>
+            {type === 'puzzle' && (
+              <fieldset className="ins-note" style={{ display: 'block', margin: '0.5rem 0 1rem' }}>
+                <legend className="gm-label" style={{ margin: 0, padding: '0 0.35rem' }}>Puzzle</legend>
+                <div className="gm-field">
+                  <span>Answer style</span>
+                  <div className="ins-seg" role="group" aria-label="Answer style">
+                    <button type="button" aria-pressed={questionType === 'multiple_choice'} onClick={() => setQuestionType('multiple_choice')}>Pick an option</button>
+                    <button type="button" aria-pressed={questionType === 'fill_blank'} onClick={() => setQuestionType('fill_blank')}>Type the answer</button>
                   </div>
                 </div>
 
-                {/* Description */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Problem Description:</label>
-                  <textarea
-                    rows={4}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Write a clear problem description. Supports markdown..."
-                    style={{ padding: '0.65rem', border: '2px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', resize: 'vertical' }}
-                    required
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
-                  {/* Difficulty */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Difficulty:</label>
-                    <select
-                      value={difficulty}
-                      onChange={(e) => setDifficulty(e.target.value)}
-                      style={{ padding: '0.55rem', border: '2px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontWeight: 700 }}
-                    >
-                      <option value="easy">Easy</option>
-                      <option value="medium">Medium</option>
-                      <option value="hard">Hard</option>
-                    </select>
-                  </div>
-
-                  {/* XP Reward */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>XP Reward:</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="500"
-                      value={xpReward}
-                      onChange={(e) => setXpReward(e.target.value)}
-                      style={{ padding: '0.55rem', border: '2px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontWeight: 700 }}
-                      required
-                    />
-                  </div>
-
-                  {/* Time limit */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Time Limit (min):</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={timeLimit}
-                      onChange={(e) => setTimeLimit(e.target.value)}
-                      style={{ padding: '0.55rem', border: '2px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
-                      title="Set to 0 for unlimited time"
-                    />
-                  </div>
-
-                  {/* Status */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Active Status:</label>
-                    <select
-                      value={isActive ? 'true' : 'false'}
-                      onChange={(e) => setIsActive(e.target.value === 'true')}
-                      style={{ padding: '0.55rem', border: '2px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontWeight: 700 }}
-                    >
-                      <option value="true">Active (Visible)</option>
-                      <option value="false">Inactive (Draft)</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Tags */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Tags (comma-separated):</label>
-                  <input
-                    type="text"
-                    value={tagsInput}
-                    onChange={(e) => setTagsInput(e.target.value)}
-                    placeholder="e.g. recursion, strings, algorithms"
-                    style={{ padding: '0.55rem', border: '2px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
-                  />
-                </div>
-
-                {/* ─── PUZZLE SPECIFIC SUB-FORM ─── */}
-                {type === 'puzzle' && (
-                  <div style={{ background: 'var(--bg-secondary)', padding: '1rem', border: '2px dashed var(--border-color)', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '1rem', margin: 0 }}>Puzzle Configurations</h4>
-                    
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Question Type:</label>
-                        <select
-                          value={questionType}
-                          onChange={(e) => setQuestionType(e.target.value)}
-                          style={{ padding: '0.45rem', border: '2px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--card-bg)', color: 'var(--text-primary)', fontWeight: 700 }}
-                        >
-                          <option value="multiple_choice">Multiple Choice (MCQ)</option>
-                          <option value="fill_blank">Fill in the Blank</option>
-                        </select>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Correct Answer (Exact Match):</label>
-                        <input
-                          type="text"
-                          value={correctAnswer}
-                          onChange={(e) => setCorrectAnswer(e.target.value)}
-                          placeholder="Correct solution text..."
-                          style={{ padding: '0.45rem', border: '2px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--card-bg)', color: 'var(--text-primary)', fontWeight: 600 }}
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    {questionType === 'multiple_choice' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>MCQ Option List (Provide 2 to 6 options):</label>
-                        {options.map((opt, idx) => (
-                          <div key={idx} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                            <input
-                              type="text"
-                              value={opt}
-                              onChange={(e) => updateOptionValue(e.target.value, idx)}
-                              placeholder={`Option #${idx + 1}`}
-                              style={{ flex: 1, padding: '0.4rem', border: '1.5px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--card-bg)' }}
-                              required
-                            />
-                            {options.length > 2 && (
-                              <button type="button" onClick={() => removeOptionField(idx)} style={{ background: 'var(--error)', color: '#fff', padding: '0.4rem 0.6rem', borderRadius: 'var(--radius-sm)', fontWeight: 700 }}>
-                                ×
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                        {options.length < 6 && (
-                          <button type="button" onClick={addOptionField} className="nb-btn nb-btn-secondary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.72rem', alignSelf: 'flex-start', marginTop: '0.25rem' }}>
-                            + Add Option Option
+                {questionType === 'multiple_choice' && (
+                  <div className="gm-field">
+                    <span>Options (2 to 6)</span>
+                    {options.map((opt, idx) => (
+                      <div key={idx} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <span className="gm-option__key" aria-hidden="true">{String.fromCharCode(65 + idx)}</span>
+                        <input className="gm-input" value={opt} onChange={(e) => updateAt(options, setOptions, idx, e.target.value)}
+                          placeholder={`Option ${String.fromCharCode(65 + idx)}`} required aria-label={`Option ${String.fromCharCode(65 + idx)}`} />
+                        {options.length > 2 && (
+                          <button type="button" className="socket-toast__close" style={{ margin: 0 }} aria-label={`Remove option ${String.fromCharCode(65 + idx)}`}
+                            onClick={() => setOptions(options.filter((_, i) => i !== idx))}>
+                            <i className="fa-solid fa-xmark" />
                           </button>
                         )}
                       </div>
+                    ))}
+                    {options.length < 6 && (
+                      <button type="button" className="ins-link" style={{ justifySelf: 'start' }} onClick={() => setOptions([...options, ''])}>
+                        <i className="fa-solid fa-plus" /> Add an option
+                      </button>
                     )}
                   </div>
                 )}
 
-                {/* ─── CODING SPECIFIC SUB-FORM ─── */}
-                {type === 'coding' && (
-                  <div style={{ background: 'var(--bg-secondary)', padding: '1rem', border: '2px dashed var(--border-color)', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '1rem', margin: 0 }}>Coding configurations</h4>
-                    
-                    {/* Starter Code */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Starter Code Template:</label>
-                      <textarea
-                        rows={6}
-                        value={starterCode}
-                        onChange={(e) => setStarterCode(e.target.value)}
-                        placeholder="function solve() {\n  // Starter code here\n}"
-                        style={{ padding: '0.5rem', border: '2px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontFamily: 'monospace', fontSize: '0.8rem', background: 'var(--card-bg)' }}
-                      />
-                    </div>
+                <label className="gm-field" style={{ marginBottom: 0 }}>
+                  <span>Correct answer{questionType === 'multiple_choice' ? ' (exactly as one option is written)' : ''}</span>
+                  <input className="gm-input" value={correctAnswer} onChange={(e) => setCorrectAnswer(e.target.value)} required
+                    placeholder={editingChallenge ? 'Type the answer again to save' : 'The answer students must give'} />
+                </label>
+                {editingChallenge && (
+                  <p className="ins-panel__meta" style={{ margin: '0.4rem 0 0' }}>
+                    Answers are kept secret, even from this page, so type it again when you edit.
+                  </p>
+                )}
+              </fieldset>
+            )}
 
-                    {/* Hints (Max 5) */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Hints (Max 5):</label>
-                      {hints.map((hint, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                          <input
-                            type="text"
-                            value={hint}
-                            onChange={(e) => updateHintValue(e.target.value, idx)}
-                            placeholder={`Hint #${idx + 1}`}
-                            style={{ flex: 1, padding: '0.4rem', border: '1.5px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--card-bg)' }}
-                          />
-                          {hints.length > 1 && (
-                            <button type="button" onClick={() => removeHintField(idx)} style={{ background: 'var(--error)', color: '#fff', padding: '0.4rem 0.6rem', borderRadius: 'var(--radius-sm)', fontWeight: 700 }}>
-                              ×
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                      {hints.length < 5 && (
-                        <button type="button" onClick={addHintField} className="nb-btn nb-btn-secondary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.72rem', alignSelf: 'flex-start', marginTop: '0.25rem' }}>
-                          + Add Hint Field
+            {type === 'coding' && (
+              <fieldset className="ins-note" style={{ display: 'block', margin: '0.5rem 0 1rem' }}>
+                <legend className="gm-label" style={{ margin: 0, padding: '0 0.35rem' }}>Coding</legend>
+                <label className="gm-field">
+                  <span>Starter code (optional)</span>
+                  <textarea className="gm-code" style={{ minHeight: 140 }} value={starterCode} onChange={(e) => setStarterCode(e.target.value)}
+                    placeholder={'def solve():\n    # students start here\n    pass'} spellCheck={false} />
+                </label>
+
+                <div className="gm-field">
+                  <span>Hints (up to 5, each costs 20% of the XP)</span>
+                  {hints.map((hint, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <input className="gm-input" value={hint} onChange={(e) => updateAt(hints, setHints, idx, e.target.value)}
+                        placeholder={`Hint ${idx + 1}`} aria-label={`Hint ${idx + 1}`} />
+                      {hints.length > 1 && (
+                        <button type="button" className="socket-toast__close" style={{ margin: 0 }} aria-label={`Remove hint ${idx + 1}`}
+                          onClick={() => setHints(hints.filter((_, i) => i !== idx))}>
+                          <i className="fa-solid fa-xmark" />
                         </button>
                       )}
                     </div>
-
-                    {/* Test cases (Min 1) */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Test Cases (Minimum 1):</label>
-                      {testCases.map((tc, idx) => (
-                        <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 100px 40px', gap: '0.5rem', alignItems: 'center', background: 'var(--card-bg)', padding: '0.5rem', border: '1.5px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
-                          <input
-                            type="text"
-                            value={tc.input}
-                            onChange={(e) => updateTestCase('input', e.target.value, idx)}
-                            placeholder="Input params"
-                            style={{ padding: '0.35rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}
-                            required
-                          />
-                          <input
-                            type="text"
-                            value={tc.expectedOutput}
-                            onChange={(e) => updateTestCase('expectedOutput', e.target.value, idx)}
-                            placeholder="Expected output"
-                            style={{ padding: '0.35rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}
-                            required
-                          />
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', cursor: 'pointer', userSelect: 'none' }}>
-                            <input
-                              type="checkbox"
-                              checked={tc.isHidden}
-                              onChange={(e) => updateTestCase('isHidden', e.target.checked, idx)}
-                            />
-                            Hidden?
-                          </label>
-                          {testCases.length > 1 ? (
-                            <button type="button" onClick={() => removeTestCase(idx)} style={{ background: 'var(--error)', color: '#fff', border: 'none', padding: '0.25rem', borderRadius: 'var(--radius-sm)', fontWeight: 700, cursor: 'pointer' }}>
-                              ×
-                            </button>
-                          ) : <div />}
-                        </div>
-                      ))}
-                      <button type="button" onClick={addTestCase} className="nb-btn nb-btn-secondary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.72rem', alignSelf: 'flex-start', marginTop: '0.25rem' }}>
-                        + Add Test Case
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <button type="submit" className="nb-btn nb-btn-primary" style={{ alignSelf: 'flex-start' }}>
-                  {editingChallenge ? 'Update Challenge' : 'Publish Challenge'}
-                </button>
-              </form>
-            </div>
-          ) : (
-            // Challenge List View
-            <div className="glass-panel" style={{ padding: '1.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.15rem', margin: 0 }}>Active Challenges & Problems</h3>
-                <button onClick={() => { resetForm(); setShowCreateForm(true); }} className="nb-btn nb-btn-primary">
-                  + Add Challenge
-                </button>
-              </div>
-
-              {challenges.length === 0 ? (
-                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  No challenges created yet. Click "Add Challenge" to publish one!
+                  ))}
+                  {hints.length < 5 && (
+                    <button type="button" className="ins-link" style={{ justifySelf: 'start' }} onClick={() => setHints([...hints, ''])}>
+                      <i className="fa-solid fa-plus" /> Add a hint
+                    </button>
+                  )}
                 </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {challenges.map((c) => (
-                    <div
-                      key={c._id}
-                      style={{
-                        padding: '1rem',
-                        border: '2px solid var(--border-color)',
-                        borderRadius: 'var(--radius-sm)',
-                        background: 'var(--bg-secondary)',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}
-                    >
-                      <div>
-                        <h4 style={{ margin: '0 0 0.25rem', fontSize: '1rem', fontFamily: 'var(--font-heading)', fontWeight: 700 }}>
-                          {c.title} {c.isActive === false && <span style={{ color: 'var(--error)', fontSize: '0.72rem' }}>(Draft)</span>}
-                        </h4>
-                        <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                          Type: <strong style={{ textTransform: 'capitalize' }}>{c.type}</strong> • XP: <strong>{c.xpReward}</strong> • Diff: <strong style={{ textTransform: 'capitalize' }}>{c.difficulty}</strong>
-                        </p>
-                      </div>
 
-                      <div style={{ display: 'flex', gap: '0.75rem' }}>
-                        <button onClick={() => handleEdit(c)} className="nb-btn nb-btn-secondary" style={{ padding: '0.45rem 0.85rem', fontSize: '0.72rem', fontWeight: 800 }}>
-                          Edit
+                <div className="gm-field" style={{ marginBottom: 0 }}>
+                  <span>Test cases (at least one). Visible ones are shown to students as examples.</span>
+                  {testCases.map((tc, idx) => (
+                    <div key={idx} className="ins-grid-2" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) auto auto', gap: '0.5rem', alignItems: 'center' }}>
+                      <input className="gm-input" value={tc.input} onChange={(e) => updateAt(testCases, setTestCases, idx, { ...tc, input: e.target.value })}
+                        placeholder="Input" aria-label={`Test ${idx + 1} input`} />
+                      <input className="gm-input" value={tc.expectedOutput} onChange={(e) => updateAt(testCases, setTestCases, idx, { ...tc, expectedOutput: e.target.value })}
+                        placeholder="Expected output" aria-label={`Test ${idx + 1} expected output`} />
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        <input type="checkbox" checked={!!tc.isHidden} onChange={(e) => updateAt(testCases, setTestCases, idx, { ...tc, isHidden: e.target.checked })} />
+                        Hidden
+                      </label>
+                      {testCases.length > 1 ? (
+                        <button type="button" className="socket-toast__close" style={{ margin: 0 }} aria-label={`Remove test ${idx + 1}`}
+                          onClick={() => setTestCases(testCases.filter((_, i) => i !== idx))}>
+                          <i className="fa-solid fa-xmark" />
                         </button>
-                        <button onClick={() => handleDelete(c._id)} className="nb-btn" style={{ padding: '0.45rem 0.85rem', fontSize: '0.72rem', fontWeight: 800, background: 'var(--error)', color: '#fff' }}>
-                          Delete
-                        </button>
-                      </div>
+                      ) : <span style={{ width: 32 }} />}
                     </div>
                   ))}
+                  <button type="button" className="ins-link" style={{ justifySelf: 'start' }} onClick={() => setTestCases([...testCases, emptyTestCase()])}>
+                    <i className="fa-solid fa-plus" /> Add a test case
+                  </button>
                 </div>
-              )}
+              </fieldset>
+            )}
+
+            {formError && <p style={{ color: 'var(--error)', fontWeight: 600, margin: '0 0 0.75rem' }}>{formError}</p>}
+
+            <div className="gm-actions">
+              <button type="submit" className="nb-btn nb-btn-primary" disabled={saving}>
+                {saving ? 'Saving…' : editingChallenge ? 'Save changes' : isActive ? 'Publish' : 'Save draft'}
+              </button>
+              <button type="button" className="nb-btn nb-btn-secondary" onClick={() => { setShowCreateForm(false); resetForm(); }}>Cancel</button>
             </div>
-          )}
-        </>
+          </form>
+        </section>
+      ) : challenges.length === 0 ? (
+        <div className="ins-panel ins-empty">
+          <i className="fa-solid fa-puzzle-piece" />
+          <strong>No challenges yet</strong>
+          <p>Write a quick puzzle or a coding problem. Students earn XP for solving it.</p>
+          <button type="button" className="nb-btn nb-btn-primary" style={{ marginTop: '0.75rem' }} onClick={() => { resetForm(); setShowCreateForm(true); }}>
+            New challenge
+          </button>
+        </div>
+      ) : (
+        /* ══════ All challenges ══════ */
+        <section className="ins-panel" aria-label="Challenges">
+          <ul className="ins-people">
+            {challenges.map((c) => {
+              const s = statsFor(c._id);
+              const t = TYPE[c.type] || TYPE.puzzle;
+              return (
+                <li key={c._id}>
+                  <div className="ins-person" style={{ cursor: 'default', flexWrap: 'wrap' }}>
+                    <span className="ins-avatar" style={{ '--tone': 'var(--data-score)', borderRadius: 10 }} aria-hidden="true"><i className={t.icon} /></span>
+                    <span className="ins-person__text" style={{ minWidth: 180 }}>
+                      <strong>{c.title}{c.isActive === false ? ' · Draft' : ''}</strong>
+                      <small>
+                        {t.label} · {c.xpReward} XP{c.timeLimit ? ` · ${c.timeLimit} min` : ''}
+                        {' · '}{s.tried ? `${s.solved} of ${s.tried} solved` : 'No answers yet'}
+                      </small>
+                    </span>
+                    <DiffChip difficulty={c.difficulty} />
+                    <span className="gm-actions" style={{ gap: '0.5rem' }}>
+                      <button type="button" className="nb-btn nb-btn-secondary" onClick={() => handleEdit(c)}>Edit</button>
+                      <button type="button" className="socket-toast__close" style={{ margin: 0 }} aria-label={`Delete ${c.title}`} title="Delete"
+                        onClick={() => setDeleting(c)}>
+                        <i className="fa-solid fa-trash-can" />
+                      </button>
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       )}
+
+      <Modal isOpen={!!deleting} onClose={() => setDeleting(null)} title="Delete this challenge?"
+        subtitle={deleting?.title} size="sm">
+        <p style={{ margin: '0 0 1.25rem', color: 'var(--text-secondary)' }}>
+          Students will no longer see it. XP already earned from it stays with them.
+        </p>
+        <div className="modal-actions">
+          <button type="button" className="modal-btn modal-btn-ghost" onClick={() => setDeleting(null)}>Keep it</button>
+          <button type="button" className="modal-btn modal-btn-danger" onClick={confirmDelete}>Delete</button>
+        </div>
+      </Modal>
     </div>
   );
 };

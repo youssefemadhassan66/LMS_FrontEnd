@@ -1,5 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useApiRequest } from '../../hooks/useApiRequest';
+import Modal from '../../components/Modal/Modal';
+import { SkeletonCardGrid } from '../../components/Skeleton/Skeleton';
+import './DashboardOverview.css';
+import './Insights.css';
+import './Gamification.css';
 
 const listFromEnvelope = (payload, key) => {
   if (Array.isArray(payload?.[key])) return payload[key];
@@ -7,588 +12,539 @@ const listFromEnvelope = (payload, key) => {
   return [];
 };
 
+const DIFFICULTY = {
+  easy: { label: 'Easy', className: 'gm-easy' },
+  medium: { label: 'Medium', className: 'gm-medium' },
+  hard: { label: 'Hard', className: 'gm-hard' },
+};
+
+const TYPE = {
+  coding: { label: 'Coding', icon: 'fa-solid fa-code' },
+  puzzle: { label: 'Puzzle', icon: 'fa-solid fa-puzzle-piece' },
+};
+
+// Must match HINT_PENALTY_PERCENT on the server: each hint takes 20% off the
+// reward, up to 80%.
+const HINT_PENALTY = 20;
+const MAX_PENALTY = 80;
+
+// Every challenge allows one attempt. Its state decides what a card offers:
+// a fresh one can be started, an open one resumed, a finished one only viewed.
+const stateOf = (attempt) => {
+  if (!attempt) return 'new';
+  if (attempt.status === 'in_progress') return 'wip';
+  if (attempt.status === 'pending') return 'wait';
+  if (attempt.status === 'correct' || (attempt.status === 'graded' && attempt.score > 0)) return 'won';
+  return 'lost';
+};
+
+const ORDER = { wip: 0, new: 1, wait: 2, won: 3, lost: 4 };
+
+const StatusPill = ({ state, attempt }) => {
+  if (state === 'new') return <span className="gm-status is-action">Start <i className="fa-solid fa-arrow-right" /></span>;
+  if (state === 'wip') return <span className="gm-status is-action">Continue <i className="fa-solid fa-arrow-right" /></span>;
+  if (state === 'wait') return <span className="gm-status is-wait"><i className="fa-solid fa-hourglass-half" />Waiting for a grade</span>;
+  if (state === 'won') return <span className="gm-status is-won"><i className="fa-solid fa-circle-check" />Solved{attempt?.xpAwarded ? ` · +${attempt.xpAwarded} XP` : ''}</span>;
+  return <span className="gm-status is-lost"><i className="fa-solid fa-circle-xmark" />Not solved</span>;
+};
+
+const Chips = ({ challenge }) => {
+  const diff = DIFFICULTY[challenge.difficulty] || DIFFICULTY.easy;
+  const type = TYPE[challenge.type] || TYPE.puzzle;
+  return (
+    <>
+      <span className={`gm-chip ${diff.className}`}>{diff.label}</span>
+      <span className="gm-chip is-plain"><i className={type.icon} />{type.label}</span>
+    </>
+  );
+};
+
+/** Minutes and seconds left on a timed attempt, counted from when it started. */
+const Countdown = ({ startedAt, minutes }) => {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const end = new Date(startedAt).getTime() + minutes * 60 * 1000;
+  const left = Math.max(0, Math.round((end - now) / 1000));
+  const mm = String(Math.floor(left / 60)).padStart(2, '0');
+  const ss = String(left % 60).padStart(2, '0');
+  return (
+    <span className={`gm-timer${left < 60 ? ' is-low' : ''}`} role="timer" aria-label={`${Math.ceil(left / 60)} minutes left`}>
+      <i className="fa-solid fa-stopwatch" />{left === 0 ? 'Time is up' : `${mm}:${ss}`}
+    </span>
+  );
+};
+
+/** How a finished attempt went, with the student's own answer. */
+const Result = ({ challenge, attempt }) => {
+  const state = stateOf(attempt);
+  const graded = attempt.status === 'graded';
+  const view = {
+    won: { tone: 'var(--success)', icon: 'fa-solid fa-trophy', title: graded ? `Scored ${attempt.score}/100` : 'Solved!',
+      text: 'Nice work. The XP is already on your level bar.' },
+    wait: { tone: 'var(--warning)', icon: 'fa-solid fa-hourglass-half', title: 'Sent to your teacher',
+      text: 'Your teacher will check your code and grade it. You will get a notification with your score.' },
+    lost: { tone: 'var(--text-muted)', icon: 'fa-solid fa-seedling', title: graded ? `Scored ${attempt.score ?? 0}/100` : 'Not this time',
+      text: 'Each challenge has one try. Every attempt is practice: pick another one to keep earning XP.' },
+  }[state];
+  if (!view) return null;
+
+  return (
+    <div>
+      <div className="gm-result" style={{ '--tone': view.tone }}>
+        <i className={view.icon} aria-hidden="true" />
+        <strong>{view.title}</strong>
+        {attempt.xpAwarded > 0 && <span className="gm-xp-pill"><i className="fa-solid fa-bolt" />+{attempt.xpAwarded} XP</span>}
+        <p>{view.text}</p>
+      </div>
+
+      {attempt.feedback && (
+        <div className="gm-answer">
+          <strong>Feedback from your teacher</strong>
+          <p style={{ margin: '0.35rem 0 0', whiteSpace: 'pre-wrap' }}>{attempt.feedback}</p>
+        </div>
+      )}
+
+      {challenge.type === 'puzzle' && attempt.selectedAnswer != null && (
+        <div className="gm-answer">Your answer: <strong>{attempt.selectedAnswer}</strong></div>
+      )}
+      {challenge.type === 'coding' && attempt.submittedCode && (
+        <div className="gm-answer">
+          <strong>Your code</strong>
+          <pre>{attempt.submittedCode}</pre>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ChallengesPage = () => {
   const { request } = useApiRequest();
   const [challenges, setChallenges] = useState([]);
   const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedChallenge, setSelectedChallenge] = useState(null);
-  const [currentAttempt, setCurrentAttempt] = useState(null);
+  const [reload, setReload] = useState(0);
 
-  // Filters
-  const [type, setType] = useState(''); // coding, puzzle
-  const [difficulty, setDifficulty] = useState(''); // easy, medium, hard
-  const [searchTag, setSearchTag] = useState('');
+  // Filters, all applied in the browser.
+  const [query, setQuery] = useState('');
+  const [show, setShow] = useState('todo');
+  const [type, setType] = useState('');
+  const [difficulty, setDifficulty] = useState('');
 
-  // Sandbox State
-  const [puzzleAnswer, setPuzzleAnswer] = useState('');
-  const [submittedCode, setSubmittedCode] = useState('');
+  // The open challenge
+  const [selected, setSelected] = useState(null);
+  const [attempt, setAttempt] = useState(null);
+  const [opening, setOpening] = useState(false);
+  const [openError, setOpenError] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [code, setCode] = useState('');
   const [codeUrl, setCodeUrl] = useState('');
   const [hintsRevealed, setHintsRevealed] = useState(0);
   const [showHintModal, setShowHintModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [submissionResult, setSubmissionResult] = useState(null);
+  const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
-    const fetchChallengesAndAttempts = async () => {
+    let alive = true;
+    (async () => {
       setLoading(true);
       try {
-        const queryParams = new URLSearchParams();
-        if (type) queryParams.set('type', type);
-        if (difficulty) queryParams.set('difficulty', difficulty);
-        if (searchTag) queryParams.set('tags', searchTag);
-        const queryStr = queryParams.toString() ? `?${queryParams.toString()}` : '';
-
         const [challengesRes, attemptsRes] = await Promise.all([
-          request(`/api/v1/challenges${queryStr}`),
-          request('/api/v1/challenges/my-attempts')
+          request('/api/v1/challenges?limit=200'),
+          request('/api/v1/challenges/my-attempts'),
         ]);
-
-        if (challengesRes.status === 'success') {
-          setChallenges(listFromEnvelope(challengesRes.data, 'challenges'));
-        }
-        if (attemptsRes.status === 'success') {
-          setAttempts(listFromEnvelope(attemptsRes.data, 'attempts'));
-        }
+        if (!alive) return;
+        if (challengesRes.status === 'success') setChallenges(listFromEnvelope(challengesRes.data, 'challenges'));
+        if (attemptsRes.status === 'success') setAttempts(listFromEnvelope(attemptsRes.data, 'attempts'));
       } catch (err) {
         console.error('Failed to load challenges:', err);
       } finally {
-        setLoading(false);
+        if (alive) setLoading(false);
       }
+    })();
+    return () => { alive = false; };
+  }, [request, reload]);
+
+  const attemptFor = useMemo(() => {
+    const map = new Map();
+    attempts.forEach((a) => map.set(a.challenge?._id || a.challenge, a));
+    return (id) => map.get(id);
+  }, [attempts]);
+
+  const summary = useMemo(() => {
+    const finished = attempts.map((a) => stateOf(a));
+    return {
+      solved: finished.filter((s) => s === 'won').length,
+      waiting: finished.filter((s) => s === 'wait').length,
+      xp: attempts.reduce((sum, a) => sum + (a.xpAwarded || 0), 0),
     };
+  }, [attempts]);
 
-    if (!selectedChallenge) {
-      fetchChallengesAndAttempts();
-    }
-  }, [type, difficulty, searchTag, selectedChallenge, request]);
+  const shown = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return challenges
+      .map((c) => ({ challenge: c, attempt: attemptFor(c._id), state: stateOf(attemptFor(c._id)) }))
+      .filter(({ challenge, state }) => {
+        if (show === 'todo' && !(state === 'new' || state === 'wip')) return false;
+        if (show === 'done' && (state === 'new' || state === 'wip')) return false;
+        if (type && challenge.type !== type) return false;
+        if (difficulty && challenge.difficulty !== difficulty) return false;
+        if (!needle) return true;
+        return `${challenge.title} ${challenge.description} ${(challenge.tags || []).join(' ')}`.toLowerCase().includes(needle);
+      })
+      .sort((a, b) => ORDER[a.state] - ORDER[b.state]);
+  }, [challenges, attemptFor, query, show, type, difficulty]);
 
-  const handleStartChallenge = async (challenge) => {
-    setLoading(true);
-    setSelectedChallenge(challenge);
-    setSubmissionResult(null);
-    setPuzzleAnswer('');
-    setSubmittedCode(challenge.codingData?.starterCode || '');
+  const todoCount = challenges.filter((c) => ['new', 'wip'].includes(stateOf(attemptFor(c._id)))).length;
+
+  const openChallenge = async (challenge) => {
+    const existing = attemptFor(challenge._id);
+    setSelected(challenge);
+    setAttempt(existing || null);
+    setOpenError('');
+    setSubmitError('');
+    setAnswer('');
+    setCode(challenge.codingData?.starterCode || '');
     setCodeUrl('');
-    setHintsRevealed(0);
+    setHintsRevealed(existing?.hintsUsed || 0);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 
+    // Finished attempts are only shown, never restarted: the server allows one.
+    const state = stateOf(existing);
+    if (state !== 'new' && state !== 'wip') return;
+
+    setOpening(true);
     try {
       const res = await request(`/api/v1/challenges/${challenge._id}/start`, 'POST');
       if (res.status === 'success') {
-        const attempt = res.data?.attempt || res.data;
-        setCurrentAttempt(attempt);
-        setHintsRevealed(attempt?.hintsUsed || 0);
+        const started = res.data?.attempt || res.data;
+        setAttempt(started);
+        setHintsRevealed(started?.hintsUsed || 0);
       }
     } catch (err) {
-      console.error('Failed to start challenge attempt:', err);
+      setOpenError(err.message || 'Could not open this challenge.');
     } finally {
-      setLoading(false);
+      setOpening(false);
     }
   };
 
-  const handleRevealHintClick = () => {
-    const totalHints = selectedChallenge?.codingData?.hints?.length || 0;
-    if (hintsRevealed >= totalHints) return;
-    setShowHintModal(true);
+  const closeChallenge = () => {
+    setSelected(null);
+    setAttempt(null);
+    setReload((n) => n + 1);
   };
 
   const confirmRevealHint = async () => {
     try {
-      const res = await request(`/api/v1/challenges/${selectedChallenge._id}/hint`, 'POST');
-      if (res.status === 'success') {
-        setHintsRevealed((prev) => res.data?.hintNumber || prev + 1);
-        setSubmissionResult(null);
-      }
+      const res = await request(`/api/v1/challenges/${selected._id}/hint`, 'POST');
+      if (res.status === 'success') setHintsRevealed((prev) => res.data?.hintNumber || prev + 1);
     } catch (err) {
-      setSubmissionResult({ success: false, message: err.message });
+      setSubmitError(err.message);
     } finally {
       setShowHintModal(false);
     }
   };
 
-  const handleSubmitPuzzle = async (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    if (!puzzleAnswer.trim()) return;
+    const isPuzzle = selected.type === 'puzzle';
+    if (isPuzzle ? !answer.trim() : !(code.trim() || codeUrl.trim())) return;
 
     setSubmitting(true);
+    setSubmitError('');
     try {
-      const res = await request(`/api/v1/challenges/${selectedChallenge._id}/submit-puzzle`, 'POST', {
-        selectedAnswer: puzzleAnswer
-      });
+      const res = isPuzzle
+        ? await request(`/api/v1/challenges/${selected._id}/submit-puzzle`, 'POST', { selectedAnswer: answer.trim() })
+        : await request(`/api/v1/challenges/${selected._id}/submit-code`, 'POST', {
+          submittedCode: code,
+          codeLinks: codeUrl ? [{ name: 'Repository', url: codeUrl }] : [],
+          hintsUsed: hintsRevealed,
+        });
       if (res.status === 'success') {
-        setSubmissionResult({
-          success: res.data.isCorrect,
-          message: res.data.isCorrect 
-            ? `Correct! 🎉 You've been awarded ${res.data.xpAwarded} XP.` 
-            : 'Incorrect answer. Try again!'
+        const done = res.data?.attempt || {};
+        setAttempt({
+          ...attempt,
+          ...done,
+          status: done.status || (isPuzzle ? (res.data?.isCorrect ? 'correct' : 'incorrect') : 'pending'),
+          xpAwarded: done.xpAwarded ?? res.data?.xpAwarded ?? 0,
+          selectedAnswer: isPuzzle ? answer.trim() : done.selectedAnswer,
+          submittedCode: isPuzzle ? done.submittedCode : code,
         });
       }
     } catch (err) {
-      setSubmissionResult({ success: false, message: err.message });
+      setSubmitError(err.message || 'Could not send your answer. Try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleSubmitCode = async (e) => {
-    e.preventDefault();
-    if (!submittedCode.trim()) return;
+  /* ══════ One challenge ══════ */
+  if (selected) {
+    const state = stateOf(attempt);
+    const finished = attempt && state !== 'new' && state !== 'wip';
+    const hints = selected.codingData?.hints || [];
+    const examples = (selected.codingData?.testCases || []).filter((t) => !t.isHidden);
+    const options = selected.puzzleData?.options || [];
+    const isChoice = selected.type === 'puzzle' && (selected.puzzleData?.questionType === 'multiple_choice' || options.length > 0);
+    const penalty = Math.min(hintsRevealed * HINT_PENALTY, MAX_PENALTY);
+    const maxXp = Math.max(Math.floor(selected.xpReward * (1 - penalty / 100)), 1);
 
-    setSubmitting(true);
-    try {
-      const body = {
-        submittedCode,
-        codeLinks: codeUrl ? [{ name: 'Repository', url: codeUrl }] : [],
-        hintsUsed: hintsRevealed,
-      };
-      const res = await request(`/api/v1/challenges/${selectedChallenge._id}/submit-code`, 'POST', body);
-      if (res.status === 'success') {
-        setSubmissionResult({
-          success: true,
-          message: 'Code submitted successfully! 🚀 An instructor will grade your solution soon.'
-        });
-      }
-    } catch (err) {
-      setSubmissionResult({ success: false, message: err.message });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const getChallengeStatus = (challengeId) => {
-    const challengeAttempts = attempts.filter(a => a.challenge === challengeId || a.challenge?._id === challengeId);
-    if (challengeAttempts.length === 0) return { label: 'START', color: 'var(--brand-primary)', text: '#FFFFFF' };
-    
-    // Find if there is a correct/solved attempt
-    const isSolved = challengeAttempts.some(a => a.status === 'correct' || a.status === 'solved' || a.status === 'graded');
-    const isPending = challengeAttempts.some(a => a.status === 'pending');
-
-    if (isSolved) return { label: 'SOLVED 🏆', color: 'var(--success)', text: 'var(--text-primary)' };
-    if (isPending) return { label: 'PENDING GRADE ⏳', color: 'var(--warning)', text: 'var(--text-primary)' };
-    return { label: 'FAILED ❌', color: 'var(--error)', text: '#FFFFFF' };
-  };
-
-  const getDifficultyBadge = (difficulty) => {
-    if (difficulty === 'easy') return <span className="nb-badge nb-badge-peach">Easy</span>;
-    if (difficulty === 'medium') return <span className="nb-badge nb-badge-orange">Medium</span>;
-    return <span className="nb-badge nb-badge-red">Hard</span>;
-  };
-
-  return (
-    <div style={{ paddingBottom: '30px' }}>
-      {!selectedChallenge ? (
-        // ── LIST VIEW ──
-        <>
-          <div style={{ marginBottom: '2rem' }}>
-            <h1 className="page-title">🧩 Coding Sandbox & Puzzles</h1>
-            <p className="page-subtitle">Test your problem-solving skills, earn bonus XP, and unlock special badges.</p>
-          </div>
-
-          {/* Filters Bar */}
-          <div className="glass-panel" style={{
-            padding: '1.25rem',
-            marginBottom: '2rem',
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '1.25rem',
-            alignItems: 'center'
-          }}>
-            {/* Search tag */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Search Tag:</label>
-              <input
-                type="text"
-                placeholder="e.g. loops, strings"
-                value={searchTag}
-                onChange={(e) => setSearchTag(e.target.value)}
-                style={{
-                  padding: '0.45rem 0.75rem',
-                  border: '2px solid var(--border-color)',
-                  borderRadius: 'var(--radius-sm)',
-                  background: 'var(--card-bg)',
-                  color: 'var(--text-primary)',
-                  fontWeight: 600
-                }}
-              />
-            </div>
-
-            {/* Type */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Type:</label>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value)}
-                style={{
-                  padding: '0.45rem 1rem',
-                  border: '2px solid var(--border-color)',
-                  borderRadius: 'var(--radius-sm)',
-                  background: 'var(--card-bg)',
-                  color: 'var(--text-primary)',
-                  fontWeight: 700
-                }}
-              >
-                <option value="">All Types</option>
-                <option value="coding">Coding Challenge</option>
-                <option value="puzzle">Quick Puzzle</option>
-              </select>
-            </div>
-
-            {/* Difficulty */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Difficulty:</label>
-              <select
-                value={difficulty}
-                onChange={(e) => setDifficulty(e.target.value)}
-                style={{
-                  padding: '0.45rem 1rem',
-                  border: '2px solid var(--border-color)',
-                  borderRadius: 'var(--radius-sm)',
-                  background: 'var(--card-bg)',
-                  color: 'var(--text-primary)',
-                  fontWeight: 700
-                }}
-              >
-                <option value="">All Levels</option>
-                <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard">Hard</option>
-              </select>
-            </div>
-          </div>
-
-          {loading ? (
-            <div style={{ textAlign: 'center', padding: '4rem' }}>
-              <p style={{ fontWeight: 700, fontSize: '1.2rem', color: 'var(--text-muted)' }}>Loading Sandbox...</p>
-            </div>
-          ) : challenges.length === 0 ? (
-            <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center' }}>
-              <p style={{ fontSize: '2rem' }}>🎮</p>
-              <p style={{ fontWeight: 700, color: 'var(--text-muted)' }}>No challenges available. Check back later!</p>
-            </div>
-          ) : (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-              gap: '1.5rem'
-            }}>
-              {challenges.map((challenge) => {
-                const status = getChallengeStatus(challenge._id);
-                return (
-                  <div
-                    key={challenge._id}
-                    className="glass-panel"
-                    style={{
-                      padding: '1.5rem',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      minHeight: '220px',
-                      cursor: 'pointer'
-                    }}
-                    onClick={() => handleStartChallenge(challenge)}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                        {getDifficultyBadge(challenge.difficulty)}
-                        <span style={{
-                          padding: '0.15rem 0.5rem',
-                          fontSize: '0.68rem',
-                          fontWeight: 700,
-                          border: '2px solid var(--border-color)',
-                          borderRadius: 'var(--radius-sm)',
-                          background: challenge.type === 'coding' ? 'var(--accent-yellow)' : 'var(--accent-rose)',
-                          textTransform: 'uppercase'
-                        }}>
-                          {challenge.type}
-                        </span>
-                      </div>
-
-                      <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '0.5rem', fontFamily: 'var(--font-heading)' }}>
-                        {challenge.title}
-                      </h3>
-                      <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1rem', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                        {challenge.description}
-                      </p>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '2px solid var(--border-color)', paddingTop: '0.75rem' }}>
-                      <span style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--brand-primary)' }}>
-                        ⚡ {challenge.xpReward} XP
-                      </span>
-                      <button
-                        className="nb-btn"
-                        style={{
-                          background: status.color,
-                          color: status.text,
-                          padding: '0.4rem 0.85rem',
-                          fontSize: '0.72rem',
-                          fontWeight: 800
-                        }}
-                      >
-                        {status.label}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </>
-      ) : (
-        // ── SANDBOX VIEW (DUAL-PANE) ──
-        <>
-          <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button
-              onClick={() => setSelectedChallenge(null)}
-              className="nb-btn nb-btn-secondary"
-              style={{ padding: '0.5rem 1rem' }}
-            >
-              ← Back to List
+    return (
+      <div className="overview-container">
+        <div className="ins-head">
+          <div className="ins-head__text">
+            <button type="button" className="ins-back" onClick={closeChallenge}>
+              <i className="fa-solid fa-arrow-left" /> All challenges
             </button>
-            <h1 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: '1.5rem' }}>
-              Solving: {selectedChallenge.title}
-            </h1>
+            <h1 className="page-title">{selected.title}</h1>
+            <div className="gm-chips">
+              <Chips challenge={selected} />
+              <span className="gm-chip" style={{ '--tone': 'var(--gm-xp)' }}><i className="fa-solid fa-bolt" />{selected.xpReward} XP</span>
+              {selected.timeLimit > 0 && <span className="gm-chip is-plain"><i className="fa-regular fa-clock" />{selected.timeLimit} min</span>}
+            </div>
           </div>
+          {!finished && attempt?.startedAt && selected.timeLimit > 0 && (
+            <Countdown startedAt={attempt.startedAt} minutes={selected.timeLimit} />
+          )}
+        </div>
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1.2fr',
-            gap: '1.5rem',
-            alignItems: 'stretch'
-          }}>
-            {/* Left Pane: Challenge Info & Hints */}
-            <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                  {getDifficultyBadge(selectedChallenge.difficulty)}
-                  <span className="nb-badge">{selectedChallenge.type}</span>
-                  <span className="nb-badge nb-badge-peach" style={{ background: 'var(--success)', color: 'white' }}>⚡ {selectedChallenge.xpReward} XP Max</span>
-                </div>
+        <div className="gm-solve">
+          <section className="ins-panel" aria-labelledby="problem-title">
+            <div className="ins-panel__head">
+              <h2 id="problem-title"><i className="fa-solid fa-book-open" />The problem</h2>
+            </div>
+            <p className="gm-problem">{selected.description}</p>
 
-                <div style={{ marginBottom: '1.5rem' }}>
-                  <h3 style={{ fontFamily: 'var(--font-heading)', fontWeight: 400, fontSize: '1.2rem', marginBottom: '0.5rem' }}>Problem Description</h3>
-                  <div style={{
-                    fontSize: '0.88rem',
-                    color: 'var(--text-secondary)',
-                    lineHeight: '1.6',
-                    whiteSpace: 'pre-wrap',
-                    background: 'var(--bg-secondary)',
-                    padding: '1rem',
-                    border: '2px solid var(--border-color)',
-                    borderRadius: 'var(--radius-sm)'
-                  }}>
-                    {selectedChallenge.description}
-                  </div>
-                </div>
+            {examples.length > 0 && (
+              <>
+                <h3 className="gm-label">Example{examples.length > 1 ? 's' : ''}</h3>
+                {examples.map((t, i) => (
+                  <dl key={i} className="gm-example">
+                    <dt>Input</dt><dd>{t.input}</dd>
+                    <dt>Output</dt><dd>{t.expectedOutput}</dd>
+                  </dl>
+                ))}
+              </>
+            )}
 
-                {selectedChallenge.tags && selectedChallenge.tags.length > 0 && (
-                  <div style={{ marginBottom: '1.5rem' }}>
-                    <h4 style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700 }}>Tags:</h4>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.25rem' }}>
-                      {selectedChallenge.tags.map(t => (
-                        <span key={t} style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', border: '1.5px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
-                          #{t}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+            {selected.tags?.length > 0 && (
+              <>
+                <h3 className="gm-label">Topics</h3>
+                <div className="gm-tags">{selected.tags.map((t) => <span key={t}>{t}</span>)}</div>
+              </>
+            )}
+
+            {selected.type === 'coding' && hints.length > 0 && (
+              <>
+                <h3 className="gm-label">Hints</h3>
+                {Array.from({ length: hintsRevealed }).map((_, i) => (
+                  <div key={i} className="gm-hint"><i className="fa-solid fa-lightbulb" /><span><strong>Hint {i + 1}:</strong> {hints[i]}</span></div>
+                ))}
+                {!finished && hintsRevealed < hints.length && (
+                  <button type="button" className="nb-btn nb-btn-secondary" style={{ marginTop: hintsRevealed ? '0.75rem' : 0 }}
+                    onClick={() => setShowHintModal(true)}>
+                    <i className="fa-regular fa-lightbulb" style={{ marginRight: '0.4rem' }} />
+                    Show a hint ({hintsRevealed}/{hints.length})
+                  </button>
                 )}
+                {hintsRevealed > 0 && (
+                  <p className="ins-panel__meta" style={{ margin: '0.6rem 0 0' }}>
+                    Hints used: {hintsRevealed}. This attempt can now earn up to {maxXp} XP.
+                  </p>
+                )}
+              </>
+            )}
+          </section>
+
+          <section className="ins-panel" aria-labelledby="answer-title">
+            <div className="ins-panel__head">
+              <h2 id="answer-title" style={{ '--tone': 'var(--success)' }}>
+                <i className={finished ? 'fa-solid fa-flag-checkered' : 'fa-solid fa-pen'} />
+                {finished ? 'How it went' : 'Your answer'}
+              </h2>
+            </div>
+
+            {opening && <p className="ins-panel__meta">Getting your attempt ready…</p>}
+            {openError && (
+              <div className="gm-notice" style={{ background: 'color-mix(in srgb, var(--error) 12%, transparent)' }}>
+                <i className="fa-solid fa-triangle-exclamation" style={{ color: 'var(--error)' }} />
+                <span>{openError}</span>
               </div>
+            )}
 
-              {/* Hints Drawer */}
-              <div style={{ borderTop: '3px solid var(--border-color)', paddingTop: '1.25rem' }}>
-                <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '1rem', margin: '0 0 0.5rem' }}>Need Help? 💡</h4>
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 1rem' }}>
-                  Revealing a hint costs a <strong style={{ color: 'var(--error)' }}>20% XP penalty</strong> per hint.
-                </p>
+            {finished && <Result challenge={selected} attempt={attempt} />}
 
-                {selectedChallenge.codingData?.hints && selectedChallenge.codingData.hints.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {Array.from({ length: hintsRevealed }).map((_, idx) => (
-                      <div
-                        key={idx}
-                        style={{
-                          padding: '0.75rem',
-                          background: 'var(--accent-yellow)',
-                          border: '2px solid var(--border-color)',
-                          borderRadius: 'var(--radius-sm)',
-                          fontSize: '0.8rem',
-                          fontWeight: 600
-                        }}
-                      >
-                        <strong>Hint #{idx + 1}:</strong> {selectedChallenge.codingData.hints[idx]}
-                      </div>
+            {!finished && !opening && !openError && (
+              <form onSubmit={submit}>
+                <div className="gm-notice">
+                  <i className="fa-solid fa-circle-info" />
+                  <span>
+                    {selected.type === 'puzzle'
+                      ? <>You get <strong>one try</strong>. Check your answer before you send it.</>
+                      : <>You get <strong>one try</strong>. Your teacher grades the code and you earn XP for the score.</>}
+                  </span>
+                </div>
+
+                {selected.type === 'puzzle' && isChoice && (
+                  <fieldset className="gm-options">
+                    <legend className="gm-label" style={{ marginTop: 0 }}>Pick one</legend>
+                    {options.map((option, i) => (
+                      <label key={option} className="gm-option">
+                        <input type="radio" name="puzzle-answer" value={option}
+                          checked={answer === option} onChange={() => setAnswer(option)} />
+                        <span className="gm-option__key" aria-hidden="true">{String.fromCharCode(65 + i)}</span>
+                        <span>{option}</span>
+                      </label>
                     ))}
-
-                    {hintsRevealed < selectedChallenge.codingData.hints.length && (
-                      <button
-                        onClick={handleRevealHintClick}
-                        className="nb-btn nb-btn-secondary"
-                        style={{ fontSize: '0.78rem', alignSelf: 'flex-start', padding: '0.45rem 1rem' }}
-                      >
-                        Reveal Hint ({hintsRevealed}/{selectedChallenge.codingData.hints.length})
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No hints available for this challenge.</p>
-                )}
-              </div>
-            </div>
-
-            {/* Right Pane: Editor / Submission Form */}
-            <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-              <div>
-                <h3 style={{ fontFamily: 'var(--font-heading)', fontWeight: 400, fontSize: '1.2rem', marginBottom: '1rem' }}>
-                  Your Solution Workspace
-                </h3>
-
-                {submissionResult && (
-                  <div style={{
-                    padding: '1rem',
-                    marginBottom: '1.25rem',
-                    background: submissionResult.success ? 'var(--accent-peach)' : 'var(--accent-rose)',
-                    border: '2px solid var(--border-color)',
-                    borderRadius: 'var(--radius-sm)',
-                    fontSize: '0.85rem',
-                    fontWeight: 700,
-                    color: 'var(--text-primary)'
-                  }}>
-                    {submissionResult.message}
-                  </div>
+                  </fieldset>
                 )}
 
-                {selectedChallenge.type === 'puzzle' ? (
-                  // puzzle solver form
-                  <form onSubmit={handleSubmitPuzzle} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Enter your Answer:</label>
-                      <input
-                        type="text"
-                        placeholder="Write your answer..."
-                        value={puzzleAnswer}
-                        onChange={(e) => setPuzzleAnswer(e.target.value)}
-                        style={{
-                          padding: '0.65rem',
-                          border: '2px solid var(--border-color)',
-                          borderRadius: 'var(--radius-sm)',
-                          fontSize: '0.9rem',
-                          fontWeight: 600,
-                          background: 'var(--bg-secondary)',
-                          color: 'var(--text-primary)'
-                        }}
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={submitting || !puzzleAnswer.trim()}
-                      className="nb-btn nb-btn-primary"
-                      style={{ alignSelf: 'flex-start', opacity: submitting || !puzzleAnswer.trim() ? 0.6 : 1 }}
-                    >
-                      {submitting ? 'Checking...' : 'Submit Puzzle'}
-                    </button>
-                  </form>
-                ) : (
-                  // coding challenge form
-                  <form onSubmit={handleSubmitCode} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Paste Your Code Here:</label>
-                      <textarea
-                        rows={12}
-                        value={submittedCode}
-                        onChange={(e) => setSubmittedCode(e.target.value)}
-                        style={{
-                          padding: '0.75rem',
-                          border: '2px solid var(--border-color)',
-                          borderRadius: 'var(--radius-sm)',
-                          fontSize: '0.82rem',
-                          fontFamily: 'monospace',
-                          background: 'var(--bg-secondary)',
-                          color: 'var(--text-primary)',
-                          resize: 'vertical'
-                        }}
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Repository URL (Optional):</label>
-                      <input
-                        type="url"
-                        placeholder="GitHub / CodePen link..."
-                        value={codeUrl}
-                        onChange={(e) => setCodeUrl(e.target.value)}
-                        style={{
-                          padding: '0.55rem',
-                          border: '2px solid var(--border-color)',
-                          borderRadius: 'var(--radius-sm)',
-                          fontSize: '0.85rem',
-                          fontWeight: 600,
-                          background: 'var(--bg-secondary)',
-                          color: 'var(--text-primary)'
-                        }}
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={submitting || !submittedCode.trim()}
-                      className="nb-btn nb-btn-primary"
-                      style={{ alignSelf: 'flex-start', opacity: submitting || !submittedCode.trim() ? 0.6 : 1 }}
-                    >
-                      {submitting ? 'Submitting...' : 'Submit Code'}
-                    </button>
-                  </form>
+                {selected.type === 'puzzle' && !isChoice && (
+                  <label className="gm-field">
+                    <span>Your answer</span>
+                    <input className="gm-input" value={answer} onChange={(e) => setAnswer(e.target.value)}
+                      placeholder="Type your answer" autoComplete="off" />
+                  </label>
                 )}
-              </div>
 
-              <div style={{ borderTop: '2px solid var(--border-color)', paddingTop: '1rem', marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>
-                <span>Active Attempt: {currentAttempt?._id ? `#${currentAttempt._id.slice(-6)}` : 'Initializing...'}</span>
-                <span>Hints Penalty: {hintsRevealed * 20}%</span>
-              </div>
-            </div>
+                {selected.type === 'coding' && (
+                  <>
+                    <label className="gm-field">
+                      <span>Your code</span>
+                      <textarea className="gm-code" value={code} onChange={(e) => setCode(e.target.value)}
+                        spellCheck={false} rows={12} />
+                    </label>
+                    <label className="gm-field">
+                      <span>Link to your code (optional)</span>
+                      <input className="gm-input" type="url" value={codeUrl} onChange={(e) => setCodeUrl(e.target.value)}
+                        placeholder="https://github.com/…" />
+                    </label>
+                  </>
+                )}
+
+                {submitError && <p style={{ color: 'var(--error)', fontWeight: 600, margin: '0 0 0.75rem' }}>{submitError}</p>}
+
+                <div className="gm-actions" style={{ marginTop: '1rem' }}>
+                  <button type="submit" className="nb-btn nb-btn-primary"
+                    disabled={submitting || (selected.type === 'puzzle' ? !answer.trim() : !(code.trim() || codeUrl.trim()))}>
+                    {submitting ? 'Sending…' : selected.type === 'puzzle' ? 'Check my answer' : 'Send to my teacher'}
+                  </button>
+                  <small>Worth up to {maxXp} XP</small>
+                </div>
+              </form>
+            )}
+          </section>
+        </div>
+
+        <Modal isOpen={showHintModal} onClose={() => setShowHintModal(false)} title="Show a hint?"
+          subtitle={`Each hint takes ${HINT_PENALTY}% off the XP for this challenge.`} size="sm">
+          <p style={{ margin: '0 0 1.25rem', color: 'var(--text-secondary)' }}>
+            With this hint the most you can earn drops to{' '}
+            <strong>{Math.max(Math.floor(selected.xpReward * (1 - Math.min((hintsRevealed + 1) * HINT_PENALTY, MAX_PENALTY) / 100)), 1)} XP</strong>.
+          </p>
+          <div className="modal-actions">
+            <button type="button" className="modal-btn modal-btn-ghost" onClick={() => setShowHintModal(false)}>Keep trying</button>
+            <button type="button" className="modal-btn modal-btn-primary" onClick={confirmRevealHint}>Show the hint</button>
           </div>
-        </>
+        </Modal>
+      </div>
+    );
+  }
+
+  /* ══════ All challenges ══════ */
+  return (
+    <div className="overview-container">
+      <div className="ins-head">
+        <div className="ins-head__text">
+          <h1 className="page-title">Challenges</h1>
+          <p className="page-subtitle">Quick puzzles and coding problems. Each one earns XP, and you get one try, so take your time.</p>
+        </div>
+      </div>
+
+      {!loading && challenges.length > 0 && (
+        <div className="gm-summary">
+          <div className="gm-sum" style={{ '--tone': 'var(--success)' }}>
+            <i className="fa-solid fa-circle-check" />
+            <div><strong>{summary.solved}<small style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}> / {challenges.length}</small></strong><span>solved</span></div>
+          </div>
+          <div className="gm-sum" style={{ '--tone': 'var(--gm-xp)' }}>
+            <i className="fa-solid fa-bolt" />
+            <div><strong>{summary.xp}</strong><span>XP from challenges</span></div>
+          </div>
+          <div className="gm-sum" style={{ '--tone': 'var(--warning)' }}>
+            <i className="fa-solid fa-hourglass-half" />
+            <div><strong>{summary.waiting}</strong><span>waiting for a grade</span></div>
+          </div>
+        </div>
       )}
 
-      {/* ⚠️ Hint Warn Confirmation Modal */}
-      {showHintModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 10000
-        }}>
-          <div className="glass-panel" style={{
-            padding: '2rem',
-            maxWidth: '400px',
-            width: '100%',
-            background: 'var(--card-bg)',
-            textAlign: 'center'
-          }}>
-            <span style={{ fontSize: '2.5rem' }}>⚠️</span>
-            <h3 style={{ fontFamily: 'var(--font-heading)', margin: '0.5rem 0' }}>Reveal Hint?</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
-              Clicking reveal will show a hint, but it incurs a <strong style={{ color: 'var(--error)' }}>20% XP penalty</strong>. Your maximum possible reward for this attempt will drop!
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
-              <button
-                onClick={() => setShowHintModal(false)}
-                className="nb-btn nb-btn-secondary"
-                style={{ padding: '0.5rem 1rem' }}
-              >
-                No, Go Back
+      <div className="ins-toolbar">
+        <label className="ins-search">
+          <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
+          <input type="search" value={query} onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name or topic" aria-label="Search challenges" />
+        </label>
+        <div className="ins-seg" role="group" aria-label="Show">
+          {[['todo', `To do${loading ? '' : ` (${todoCount})`}`], ['done', 'Done'], ['all', 'All']].map(([value, label]) => (
+            <button key={value} type="button" aria-pressed={show === value} onClick={() => setShow(value)}>{label}</button>
+          ))}
+        </div>
+        <div className="ins-seg" role="group" aria-label="Type">
+          {[['', 'Any type'], ['puzzle', 'Puzzles'], ['coding', 'Coding']].map(([value, label]) => (
+            <button key={value || 'any'} type="button" aria-pressed={type === value} onClick={() => setType(value)}>{label}</button>
+          ))}
+        </div>
+        <div className="ins-seg" role="group" aria-label="Difficulty">
+          {[['', 'Any level'], ['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']].map(([value, label]) => (
+            <button key={value || 'any'} type="button" aria-pressed={difficulty === value} onClick={() => setDifficulty(value)}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <SkeletonCardGrid count={6} minWidth={290} gap="1rem" />
+      ) : challenges.length === 0 ? (
+        <div className="ins-panel ins-empty">
+          <i className="fa-solid fa-puzzle-piece" />
+          <strong>No challenges yet</strong>
+          <p>Your teachers have not added any. Check back soon.</p>
+        </div>
+      ) : shown.length === 0 ? (
+        <div className="ins-panel ins-empty">
+          <i className={show === 'todo' ? 'fa-solid fa-champagne-glasses' : 'fa-solid fa-magnifying-glass'} />
+          <strong>{show === 'todo' && !query && !type && !difficulty ? 'All done!' : 'Nothing matches'}</strong>
+          <p>
+            {show === 'todo' && !query && !type && !difficulty
+              ? 'You have tried every challenge. New ones appear here when your teachers add them.'
+              : 'Try another search or filter.'}
+          </p>
+        </div>
+      ) : (
+        <div className="gm-cards">
+          {shown.map(({ challenge, attempt: a, state }) => {
+            const diff = DIFFICULTY[challenge.difficulty] || DIFFICULTY.easy;
+            const done = state !== 'new' && state !== 'wip';
+            return (
+              <button key={challenge._id} type="button" className={`gm-card ${diff.className}${done ? ' is-done' : ''}`}
+                onClick={() => openChallenge(challenge)}>
+                <span className="gm-card__top">
+                  <span className={`gm-chip ${diff.className}`}>{diff.label}</span>
+                  <span className="gm-card__type"><i className={(TYPE[challenge.type] || TYPE.puzzle).icon} />{(TYPE[challenge.type] || TYPE.puzzle).label}</span>
+                </span>
+                <span className="gm-card__title">{challenge.title}</span>
+                <span className="gm-card__desc">{challenge.description}</span>
+                <span className="gm-card__foot">
+                  <span className="gm-card__meta">
+                    <span className="gm-xp-pill"><i className="fa-solid fa-bolt" />{challenge.xpReward} XP</span>
+                    {challenge.timeLimit > 0 && <span><i className="fa-regular fa-clock" /> {challenge.timeLimit} min</span>}
+                  </span>
+                  <StatusPill state={state} attempt={a} />
+                </span>
               </button>
-              <button
-                onClick={confirmRevealHint}
-                className="nb-btn nb-btn-primary"
-                style={{ padding: '0.5rem 1rem', background: 'var(--brand-primary)', color: '#fff' }}
-              >
-                Yes, Reveal Hint
-              </button>
-            </div>
-          </div>
+            );
+          })}
         </div>
       )}
     </div>
