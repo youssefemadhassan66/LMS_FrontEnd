@@ -4,6 +4,7 @@ import { useApiRequest } from '../../hooks/useApiRequest';
 import { useSocket } from '../../context/SocketContext';
 import { useAuth } from '../../context/AuthContext';
 import './GamificationWidget.css';
+import logger from '../../utils/logger';
 
 const GamificationWidget = () => {
   const { user } = useAuth();
@@ -19,7 +20,7 @@ const GamificationWidget = () => {
         setProfile(res.data);
       }
     } catch (err) {
-      console.error('Failed to load gamification profile:', err);
+      logger.error('Failed to load gamification profile:', err);
     } finally {
       setLoading(false);
     }

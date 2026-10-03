@@ -7,6 +7,7 @@ import { getSocketUrl } from '../utils/apiUrl';
 import { normalizeAppLink } from '../utils/appLinks';
 import { notificationIcon } from '../utils/notificationIcons';
 import { xpReason } from '../components/Gamification/xpReasons';
+import logger from '../utils/logger';
 import './SocketToasts.css';
 
 const SocketContext = createContext();
@@ -74,7 +75,7 @@ export const SocketProvider = ({ children }) => {
         totalPages: res.totalPages || 1
       };
     } catch (err) {
-      console.error('Failed to fetch notifications:', err);
+      logger.error('Failed to fetch notifications:', err);
       return { data: [], total: 0, totalPages: 1 };
     } finally {
       setLoading(false);
@@ -89,7 +90,7 @@ export const SocketProvider = ({ children }) => {
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (err) {
-      console.error('Failed to mark notification as read:', err);
+      logger.error('Failed to mark notification as read:', err);
     }
   }, [request]);
 
@@ -99,7 +100,7 @@ export const SocketProvider = ({ children }) => {
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
     } catch (err) {
-      console.error('Failed to mark all notifications as read:', err);
+      logger.error('Failed to mark all notifications as read:', err);
     }
   }, [request]);
 
@@ -116,7 +117,12 @@ export const SocketProvider = ({ children }) => {
   }, [token]);
 
   useEffect(() => {
-    if (!token) return;
+    // Wait for the user as well as the token. On a page load the token comes
+    // from storage first and the user a moment later; connecting before that
+    // meant tearing the socket down mid-handshake when the role arrived, which
+    // the browser reports as "WebSocket is closed before the connection is
+    // established".
+    if (!token || !userRole) return;
 
     const backendUrl = getSocketUrl();
     
@@ -129,7 +135,6 @@ export const SocketProvider = ({ children }) => {
     });
 
     newSocket.on('connect', () => {
-      console.log('Socket.io connected with ID:', newSocket.id);
       setSocket(newSocket);
     });
 
@@ -139,14 +144,14 @@ export const SocketProvider = ({ children }) => {
     // (expired token, deactivated account) and an unroutable /socket.io/ path
     // looked identical — like nothing had happened at all.
     newSocket.on('connect_error', (err) => {
-      console.error(
+      logger.error(
         `Socket.io connection failed (${newSocket.io.engine?.transport?.name ?? 'unknown transport'}):`,
         err.message,
       );
     });
 
     newSocket.on('disconnect', (reason) => {
-      console.warn('Socket.io disconnected:', reason);
+      logger.log('Socket.io disconnected:', reason);
       // "io server disconnect" means the server dropped us deliberately — an
       // expired access token, or an account that is no longer active. The
       // client does not auto-reconnect from that state, and it should not:

@@ -5,6 +5,7 @@ import { SkeletonCardGrid } from '../../components/Skeleton/Skeleton';
 import './DashboardOverview.css';
 import './Insights.css';
 import './Gamification.css';
+import logger from '../../utils/logger';
 
 const listFromEnvelope = (payload, key) => {
   if (Array.isArray(payload?.[key])) return payload[key];
@@ -159,7 +160,7 @@ const ChallengesPage = () => {
         if (challengesRes.status === 'success') setChallenges(listFromEnvelope(challengesRes.data, 'challenges'));
         if (attemptsRes.status === 'success') setAttempts(listFromEnvelope(attemptsRes.data, 'attempts'));
       } catch (err) {
-        console.error('Failed to load challenges:', err);
+        logger.error('Failed to load challenges:', err);
       } finally {
         if (alive) setLoading(false);
       }

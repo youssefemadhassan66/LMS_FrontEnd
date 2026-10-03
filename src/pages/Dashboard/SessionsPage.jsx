@@ -12,6 +12,21 @@ import { SkeletonCardList } from '../../components/Skeleton/Skeleton';
 import { sanitizeErrorMessage } from '../../utils/errorSanitizer';
 
 /* ─── Warm Status Colors ─── */
+// <input type="datetime-local"> speaks the viewer's local time with no zone.
+// Sent as is, the server read it in its own zone (UTC), so a 1 PM session in
+// Cairo was stored as 1 PM UTC. Send an ISO instant, and fill the input from
+// one in local time.
+const toIsoInstant = (local) => (local ? new Date(local).toISOString() : local);
+const toLocalInput = (value) => {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+const idOf = (ref) => (ref && typeof ref === 'object' ? ref._id : ref);
+
 const statusColor = (s) => {
   if (s === 'completed') return { bg: 'var(--accent-yellow)', text: 'var(--text-primary)' };
   if (s === 'canceled' || s === 'student canceled') return { bg: 'var(--brand-primary)', text: '#FFFFFF' };
@@ -487,7 +502,7 @@ const SessionsPage = () => {
         }
         const bulkPayload = {
           studentProfileIds: selectedStudentIds,
-          date: formData.date,
+          date: toIsoInstant(formData.date),
           title: formData.title,
           description: formData.description,
         };
@@ -498,12 +513,20 @@ const SessionsPage = () => {
 
         await request('/api/v1/session/bulk', 'POST', bulkPayload);
       } else {
+        const instructorId = formData.instructorId || user?._id;
+        // The server only books a student with an instructor assigned to
+        // them, and answers anything else with a bare 400/403.
+        if (role === 'admin' && !instructorAssignedTo(instructorId, formData.studentProfileId)) {
+          setFormError('That instructor is not assigned to this student. Pick their instructor, or assign one first under Assignments.');
+          setFormLoading(false);
+          return;
+        }
         const payload = {
           title: formData.title,
           description: formData.description,
           studentProfileId: formData.studentProfileId,
-          instructorId: formData.instructorId || user?._id,
-          date: formData.date,
+          instructorId,
+          date: toIsoInstant(formData.date),
           StudentAttended: formData.StudentAttended
         };
         if (formData.notes) payload.notes = formData.notes;
@@ -532,6 +555,7 @@ const SessionsPage = () => {
       if (formData.notes !== undefined) payload.notes = formData.notes;
       if (formData.meetingLink !== undefined) payload.meetingLink = formData.meetingLink;
       if (formData.status) payload.status = formData.status;
+      if (formData.date) payload.date = toIsoInstant(formData.date);
       payload.StudentAttended = formData.StudentAttended;
       await request(`/api/v1/session/${editSession._id}`, 'PATCH', payload);
       setEditSession(null); await fetchSessions();
@@ -582,9 +606,16 @@ const SessionsPage = () => {
   };
 
   const openEdit = (s) => {
-    setFormData({ title: s.title || '', description: s.description || '', studentProfileId: s.studentProfileId?._id || s.studentProfileId || '', instructorId: s.instructorId?._id || s.instructorId || '', date: s.date ? new Date(s.date).toISOString().slice(0, 16) : '', meetingLink: s.meetingLink || '', notes: s.notes || '', summary: s.summary || '', status: s.status || 'pending', StudentAttended: s.StudentAttended !== false });
+    setFormData({ title: s.title || '', description: s.description || '', studentProfileId: s.studentProfileId?._id || s.studentProfileId || '', instructorId: s.instructorId?._id || s.instructorId || '', date: toLocalInput(s.date), meetingLink: s.meetingLink || '', notes: s.notes || '', summary: s.summary || '', status: s.status || 'pending', StudentAttended: s.StudentAttended !== false });
     setFormError(null); setEditSession(s);
   };
+
+  const instructorsOf = (studentProfileId) => assignments
+    .filter(a => idOf(a.studentProfileId) === studentProfileId && (!a.status || a.status === 'active'))
+    .map(a => idOf(a.instructorId))
+    .filter(Boolean);
+  const instructorAssignedTo = (instructorId, studentProfileId) =>
+    Boolean(instructorId) && instructorsOf(studentProfileId).includes(instructorId);
 
   const assignedInstructors = Array.from(
     new Map(
@@ -650,22 +681,31 @@ const SessionsPage = () => {
 
       <div className="modal-form-group">
         <label className="modal-label">Title</label>
-        <input className="modal-input" required placeholder="Session title" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
+        <input className="modal-input" required minLength={4} placeholder="Session title (4+ characters)" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
       </div>
       <div className="modal-form-group">
         <label className="modal-label">Description</label>
-        <textarea className="modal-textarea" required placeholder="Session description" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
+        <textarea className="modal-textarea" required minLength={3} placeholder="Session description" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
       </div>
 
       {!isEdit && assignMode === 'single' && (
         <div className="modal-form-group">
           <label className="modal-label">Student</label>
           {availableStudentProfiles.length > 0 ? (
-            <select className="modal-select" required value={formData.studentProfileId} onChange={e => setFormData({ ...formData, studentProfileId: e.target.value })}>
+            <select className="modal-select" required value={formData.studentProfileId} onChange={e => {
+              const studentProfileId = e.target.value;
+              const theirs = instructorsOf(studentProfileId);
+              // An admin booking for a student with one instructor gets that
+              // instructor filled in; a choice that already fits is kept.
+              const instructorId = role === 'admin' && theirs.length === 1 && !theirs.includes(formData.instructorId)
+                ? theirs[0]
+                : formData.instructorId;
+              setFormData({ ...formData, studentProfileId, instructorId });
+            }}>
               <option value="">Choose a student</option>
               {availableStudentProfiles.map(p => (
                 <option key={p._id} value={p._id}>
-                  {p.user?.FullName || p.user?.UserName || 'Student'}{p.grade ? ` - Grade ${p.grade}` : ''}
+                  {p.user?.FullName || p.user?.UserName || 'Student'}{p.grade ? ` - ${/^grade/i.test(p.grade) ? p.grade : `Grade ${p.grade}`}` : ''}
                 </option>
               ))}
             </select>
@@ -750,7 +790,7 @@ const SessionsPage = () => {
           <label className="modal-label">Date & Time</label>
           <input className="modal-input" type="datetime-local" required={!isEdit} value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} />
         </div>
-        <div className="modal-form-group">
+        {isEdit && <div className="modal-form-group">
           <label className="modal-label">Status</label>
           <select className="modal-select" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
             <option value="pending">Pending</option>
@@ -758,7 +798,7 @@ const SessionsPage = () => {
             <option value="canceled">Canceled</option>
             <option value="student canceled">Student Canceled</option>
           </select>
-        </div>
+        </div>}
       </div>
       <div className="modal-form-group">
         <label className="modal-label">Meeting Link</label>
@@ -1180,8 +1220,8 @@ const SessionsPage = () => {
       {/* ═══ CREATE ═══ */}
       <Modal isOpen={showCreate} onClose={() => { setShowCreate(false); setSelectedStudentIds([]); setAssignMode('single'); }} title={assignMode === 'bulk' ? 'Create Bulk Sessions' : 'Create New Session'} size="lg">
         <form onSubmit={handleCreate}>
-          {formError && <div className="modal-error"><i className="fa-solid fa-triangle-exclamation" /> {formError}</div>}
           {renderFormFields(false)}
+          {formError && <div className="modal-error" role="alert" style={{ marginTop: '1rem' }}><i className="fa-solid fa-triangle-exclamation" /> {formError}</div>}
           <button type="submit" disabled={formLoading} className="modal-btn modal-btn-primary" style={{ marginTop: '1rem' }}>
             {formLoading ? 'Creating...' : <><i className="fa-solid fa-plus" /> {assignMode === 'bulk' ? `Assign Sessions to ${selectedStudentIds.length} Student(s)` : 'Create Session'}</>}
           </button>
@@ -1191,8 +1231,8 @@ const SessionsPage = () => {
       {/* ═══ EDIT ═══ */}
       <Modal isOpen={!!editSession} onClose={() => setEditSession(null)} title={`Edit — ${editSession?.title}`} size="lg">
         <form onSubmit={handleUpdate}>
-          {formError && <div className="modal-error"><i className="fa-solid fa-triangle-exclamation" /> {formError}</div>}
           {renderFormFields(true)}
+          {formError && <div className="modal-error" role="alert" style={{ marginTop: '1rem' }}><i className="fa-solid fa-triangle-exclamation" /> {formError}</div>}
           <button type="submit" disabled={formLoading} className="modal-btn modal-btn-info">{formLoading ? 'Saving...' : <><i className="fa-solid fa-floppy-disk" /> Save Changes</>}</button>
         </form>
       </Modal>
