@@ -31,5 +31,9 @@ dist-ssr
 # build/dev start. Generated, never edited by hand.
 public/excalidraw-assets/
 
+# Pyodide runtime for the code sandbox, copied out of node_modules by
+# vite.config.js on every build/dev start.
+public/sandbox/pyodide/
+
 # Claude Code scratch worktrees
 .claude/worktrees/

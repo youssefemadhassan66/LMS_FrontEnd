@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApiRequest } from '../../hooks/useApiRequest';
 import { safeUrl } from '../../utils/safeUrl';
+import { SANDBOX_LANGUAGES, isSandboxLanguage } from '../../utils/codeSandbox';
 
 const InstructorChallengesPage = () => {
   const { request } = useApiRequest();
@@ -35,6 +36,7 @@ const InstructorChallengesPage = () => {
   const [options, setOptions] = useState(['', '']);
 
   // Coding Specific Form Fields
+  const [codeLanguage, setCodeLanguage] = useState('python');
   const [starterCode, setStarterCode] = useState('');
   const [hints, setHints] = useState(['']);
   const [testCases, setTestCases] = useState([{ input: 'default', expectedOutput: 'default', isHidden: false }]);
@@ -76,6 +78,7 @@ const InstructorChallengesPage = () => {
     setQuestionType('multiple_choice');
     setCorrectAnswer('');
     setOptions(['', '']);
+    setCodeLanguage('python');
     setStarterCode('');
     setHints(['']);
     setTestCases([{ input: 'default', expectedOutput: 'default', isHidden: false }]);
@@ -99,6 +102,8 @@ const InstructorChallengesPage = () => {
       setCorrectAnswer(challenge.puzzleData.correctAnswer || '');
       setOptions(challenge.puzzleData.options || ['', '']);
     } else if (challenge.type === 'coding' && challenge.codingData) {
+      // Challenges from before the sandbox have no language; they ran as Python
+      setCodeLanguage(isSandboxLanguage(challenge.codingData.language) ? challenge.codingData.language : 'python');
       setStarterCode(challenge.codingData.starterCode || '');
       setHints(challenge.codingData.hints && challenge.codingData.hints.length > 0 ? challenge.codingData.hints : ['']);
       setTestCases(challenge.codingData.testCases || [{ input: 'default', expectedOutput: 'default', isHidden: false }]);
@@ -143,6 +148,7 @@ const InstructorChallengesPage = () => {
       };
     } else {
       body.codingData = {
+        language: codeLanguage,
         starterCode,
         hints: hints.filter(h => h.trim() !== ''),
         testCases: testCases.filter(tc => tc.input.trim() !== '' && tc.expectedOutput.trim() !== '')
@@ -624,6 +630,19 @@ const InstructorChallengesPage = () => {
                 {type === 'coding' && (
                   <div style={{ background: 'var(--bg-secondary)', padding: '1rem', border: '2px dashed var(--border-color)', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <h4 style={{ fontFamily: 'var(--font-heading)', fontSize: '1rem', margin: 0 }}>Coding configurations</h4>
+
+                    {/* Language the student's browser sandbox runs */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxWidth: '260px' }}>
+                      <label htmlFor="challenge-language" style={{ fontSize: '0.78rem', fontWeight: 700 }}>Language:</label>
+                      <select
+                        id="challenge-language"
+                        value={codeLanguage}
+                        onChange={(e) => setCodeLanguage(e.target.value)}
+                        style={{ padding: '0.45rem', border: '2px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--card-bg)', color: 'var(--text-primary)', fontWeight: 700 }}
+                      >
+                        {SANDBOX_LANGUAGES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                      </select>
+                    </div>
                     
                     {/* Starter Code */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -668,20 +687,24 @@ const InstructorChallengesPage = () => {
                       <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Test Cases (Minimum 1):</label>
                       {testCases.map((tc, idx) => (
                         <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 100px 40px', gap: '0.5rem', alignItems: 'center', background: 'var(--card-bg)', padding: '0.5rem', border: '1.5px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
-                          <input
-                            type="text"
+                          <textarea
+                            rows={2}
                             value={tc.input}
                             onChange={(e) => updateTestCase('input', e.target.value, idx)}
-                            placeholder="Input params"
-                            style={{ padding: '0.35rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}
+                            placeholder="Input (stdin)"
+                            aria-label={`Test ${idx + 1} input`}
+                            spellCheck={false}
+                            style={{ padding: '0.35rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontFamily: 'monospace', fontSize: '0.8rem', resize: 'vertical', background: 'var(--card-bg)', color: 'var(--text-primary)' }}
                             required
                           />
-                          <input
-                            type="text"
+                          <textarea
+                            rows={2}
                             value={tc.expectedOutput}
                             onChange={(e) => updateTestCase('expectedOutput', e.target.value, idx)}
                             placeholder="Expected output"
-                            style={{ padding: '0.35rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}
+                            aria-label={`Test ${idx + 1} expected output`}
+                            spellCheck={false}
+                            style={{ padding: '0.35rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontFamily: 'monospace', fontSize: '0.8rem', resize: 'vertical', background: 'var(--card-bg)', color: 'var(--text-primary)' }}
                             required
                           />
                           <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', cursor: 'pointer', userSelect: 'none' }}>

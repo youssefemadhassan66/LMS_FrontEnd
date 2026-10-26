@@ -6,6 +6,8 @@ import DateRangeFilter from '../../components/DateRangeFilter/DateRangeFilter';
 import { appendDateRange } from '../../utils/dateRangeParams';
 import { safeUrl } from '../../utils/safeUrl';
 import { SkeletonCardGrid } from '../../components/Skeleton/Skeleton';
+import CodeViewer from '../../components/CodeSandbox/CodeViewer';
+import { languageLabel } from '../../utils/codeSandbox';
 
 const statusStyles = {
   Completed: { bg: 'rgba(16,185,129,0.1)', color: 'var(--success)' },
@@ -13,6 +15,46 @@ const statusStyles = {
   Reviewed: { bg: 'rgba(59,130,246,0.1)', color: 'var(--info)' },
   Resubmitted: { bg: 'rgba(139,92,246,0.1)', color: '#8b5cf6' },
   'Late submission': { bg: 'rgba(239,68,68,0.1)', color: 'var(--error)' },
+};
+
+// A code exercise answer: graded on the server from the student's own browser
+// run. Shown as text only; nobody runs another person's code here.
+const CodeSubmission = ({ code }) => {
+  const results = Array.isArray(code.results) ? code.results : [];
+  const allPassed = code.total > 0 && code.passed === code.total;
+  return (
+    <div style={{ marginTop: '1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+        <h4 style={{ margin: 0, fontSize: '0.9rem' }}>
+          <i className="fa-solid fa-code" style={{ color: 'var(--brand-primary)' }} /> Code · {languageLabel(code.language)}
+        </h4>
+        {Number.isFinite(code.total) && (
+          <span style={{ padding: '0.2rem 0.55rem', borderRadius: 'var(--radius-sm)', fontWeight: 700, fontSize: '0.78rem', background: allPassed ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.1)', color: allPassed ? 'var(--success)' : 'var(--error)' }}>
+            {code.passed}/{code.total} tests passed
+          </span>
+        )}
+      </div>
+      {results.length > 0 && (
+        <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', marginBottom: '0.5rem' }} aria-label="Result of each test">
+          {results.map((passed, index) => (
+            <span
+              key={index}
+              title={`Test ${index + 1}: ${passed ? 'passed' : 'failed'}`}
+              style={{ minWidth: '1.6rem', textAlign: 'center', padding: '0.1rem 0.3rem', borderRadius: 'var(--radius-sm)', border: '1.5px solid var(--border-color)', fontSize: '0.72rem', fontWeight: 700, background: passed ? 'var(--success)' : 'var(--error)', color: '#fff' }}
+            >
+              {index + 1} {passed ? '✓' : '✗'}
+            </span>
+          ))}
+        </div>
+      )}
+      <CodeViewer code={code.source} label={`Submitted ${languageLabel(code.language)} code`} maxHeight="260px" />
+      {code.submittedAt && (
+        <p style={{ margin: '0.35rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          Submitted {new Date(code.submittedAt).toLocaleString()}
+        </p>
+      )}
+    </div>
+  );
 };
 
 const SubmissionsPage = () => {
@@ -231,6 +273,7 @@ const SubmissionsPage = () => {
           const st = statusStyles[sub.status] || statusStyles.Pending;
           const attachments = sub.fileAttachments || [];
           const links = sub.Task_links || [];
+          const hasCode = Boolean(sub.code?.source);
 
           return (
             <section key={sub._id} className="glass-panel" style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)' }}>
@@ -271,7 +314,7 @@ const SubmissionsPage = () => {
                       {sub.review?.score !== undefined ? <><i className="fa-solid fa-pen-to-square" /> Edit Score</> : <><i className="fa-solid fa-star" /> Give Score</>}
                     </button>
                   )}
-                  {role === 'student' && isBeforeDue(sub) && (
+                  {role === 'student' && !hasCode && isBeforeDue(sub) && (
                     <button
                       onClick={() => openUpdate(sub)}
                       style={{
@@ -315,6 +358,9 @@ const SubmissionsPage = () => {
                 <p style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>{sub.note || sub.review?.comment}</p>
               )}
 
+              {hasCode && <CodeSubmission code={sub.code} />}
+
+              {(!hasCode || links.length > 0) && (
               <div style={{ marginTop: '1rem' }}>
                 <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.9rem' }}>Links</h4>
                 {links.length === 0 ? (
@@ -329,7 +375,9 @@ const SubmissionsPage = () => {
                   </div>
                 )}
               </div>
+              )}
 
+              {(!hasCode || attachments.length > 0) && (
               <div style={{ marginTop: '1rem' }}>
                 <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.9rem' }}>Files</h4>
                 {attachments.length === 0 ? (
@@ -351,8 +399,9 @@ const SubmissionsPage = () => {
                   </div>
                 )}
               </div>
+              )}
 
-              {canUpload && (
+              {canUpload && !hasCode && (
                 <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '2px solid var(--border-color)' }}>
                   <label className="modal-label">Upload files</label>
                   <label style={{

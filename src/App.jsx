@@ -50,6 +50,7 @@ const LessonViewPage = lazy(() => import("./pages/Dashboard/LessonViewPage"));
 const AchievementsPage = lazy(() => import("./pages/Dashboard/AchievementsPage"));
 const CanvasPage = lazy(() => import("./pages/Dashboard/CanvasPage"));
 const CanvasBoardPage = lazy(() => import("./pages/Dashboard/CanvasBoardPage"));
+const CodeSandboxPage = lazy(() => import("./pages/Dashboard/CodeSandboxPage"));
 import { SocketProvider } from "./context/SocketContext";
 
 const RouteFallback = () => (
@@ -307,6 +308,19 @@ function App() {
                         ]}
                       >
                         <CanvasBoardPage />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Code runs in the visitor's own browser; nothing to
+                      protect server-side, but parents have no use for it. */}
+                  <Route
+                    path="sandbox"
+                    element={
+                      <ProtectedRoute
+                        allowedRoles={["student", "instructor", "admin"]}
+                      >
+                        <CodeSandboxPage />
                       </ProtectedRoute>
                     }
                   />

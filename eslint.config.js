@@ -10,6 +10,8 @@ export default defineConfig([
     'coverage/**',
     '.claude-flow/**',
     '.claude/**',
+    // Pyodide's minified runtime, copied out of node_modules at build time
+    'public/sandbox/pyodide/**',
   ]),
   {
     files: ['*.config.js'],

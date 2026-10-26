@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApiRequest } from '../../hooks/useApiRequest';
+import { useAuth } from '../../context/AuthContext';
+import CodeSandbox from '../../components/CodeSandbox/CodeSandbox';
 
 const listFromEnvelope = (payload, key) => {
   if (Array.isArray(payload?.[key])) return payload[key];
@@ -9,6 +11,7 @@ const listFromEnvelope = (payload, key) => {
 
 const ChallengesPage = () => {
   const { request } = useApiRequest();
+  const { user } = useAuth();
   const [challenges, setChallenges] = useState([]);
   const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +31,9 @@ const ChallengesPage = () => {
   const [showHintModal, setShowHintModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submissionResult, setSubmissionResult] = useState(null);
+  // Coding challenges: the full challenge (test inputs) and whether it was sent
+  const [challengeDetail, setChallengeDetail] = useState(null);
+  const [codeSubmitted, setCodeSubmitted] = useState(false);
 
   useEffect(() => {
     const fetchChallengesAndAttempts = async () => {
@@ -70,8 +76,17 @@ const ChallengesPage = () => {
     setSubmittedCode(challenge.codingData?.starterCode || '');
     setCodeUrl('');
     setHintsRevealed(0);
+    setCurrentAttempt(null);
+    setChallengeDetail(null);
+    setCodeSubmitted(false);
 
     try {
+      // The list never carries test cases for students; the challenge itself
+      // has every input (hidden tests without their expected output)
+      if (challenge.type === 'coding') {
+        const detail = await request(`/api/v1/challenges/${challenge._id}`).catch(() => null);
+        setChallengeDetail(detail?.data?.challenge || challenge);
+      }
       const res = await request(`/api/v1/challenges/${challenge._id}/start`, 'POST');
       if (res.status === 'success') {
         const attempt = res.data?.attempt || res.data;
@@ -79,7 +94,7 @@ const ChallengesPage = () => {
         setHintsRevealed(attempt?.hintsUsed || 0);
       }
     } catch (err) {
-      console.error('Failed to start challenge attempt:', err);
+      setSubmissionResult({ success: false, message: err.message });
     } finally {
       setLoading(false);
     }
@@ -129,29 +144,30 @@ const ChallengesPage = () => {
     }
   };
 
-  const handleSubmitCode = async (e) => {
-    e.preventDefault();
-    if (!submittedCode.trim()) return;
-
-    setSubmitting(true);
-    try {
-      const body = {
-        submittedCode,
-        codeLinks: codeUrl ? [{ name: 'Repository', url: codeUrl }] : [],
-        hintsUsed: hintsRevealed,
-      };
-      const res = await request(`/api/v1/challenges/${selectedChallenge._id}/submit-code`, 'POST', body);
-      if (res.status === 'success') {
-        setSubmissionResult({
-          success: true,
-          message: 'Code submitted successfully! 🚀 An instructor will grade your solution soon.'
-        });
-      }
-    } catch (err) {
-      setSubmissionResult({ success: false, message: err.message });
-    } finally {
-      setSubmitting(false);
-    }
+  // Called by the sandbox after it ran every test input in the browser; the
+  // server compares the outputs with the expected ones and grades at once.
+  const handleSubmitCode = async ({ code, outputs }) => {
+    const testCases = challengeDetail?.codingData?.testCases || [];
+    const body = {
+      submittedCode: code,
+      codeLinks: codeUrl ? [{ name: 'Repository', url: codeUrl }] : [],
+      hintsUsed: hintsRevealed,
+      // Without test cases there is nothing to compare: an instructor grades it
+      ...(testCases.length > 0 ? { outputs } : {}),
+    };
+    const res = await request(`/api/v1/challenges/${selectedChallenge._id}/submit-code`, 'POST', body);
+    setCodeSubmitted(true);
+    const attempt = res.data?.attempt || {};
+    const testResults = attempt.testResults || {};
+    const xp = attempt.xpAwarded ? ` You earned ${attempt.xpAwarded} XP.` : '';
+    return {
+      results: Array.isArray(testResults.results) ? testResults.results : [],
+      passed: testResults.passed,
+      total: testResults.total,
+      message: attempt.status === 'graded'
+        ? `${res.message || 'Graded.'}${xp}`
+        : 'Code submitted! An instructor will grade your solution soon.',
+    };
   };
 
   const getChallengeStatus = (challengeId) => {
@@ -159,10 +175,12 @@ const ChallengesPage = () => {
     if (challengeAttempts.length === 0) return { label: 'START', color: 'var(--brand-primary)', text: '#FFFFFF' };
     
     // Find if there is a correct/solved attempt
-    const isSolved = challengeAttempts.some(a => a.status === 'correct' || a.status === 'solved' || a.status === 'graded');
+    const isSolved = challengeAttempts.some(a => a.status === 'correct' || a.status === 'solved' || (a.status === 'graded' && (a.score ?? 100) >= 100));
+    const graded = challengeAttempts.find(a => a.status === 'graded');
     const isPending = challengeAttempts.some(a => a.status === 'pending');
 
     if (isSolved) return { label: 'SOLVED 🏆', color: 'var(--success)', text: 'var(--text-primary)' };
+    if (graded) return { label: `GRADED ${graded.score ?? 0}%`, color: 'var(--warning)', text: 'var(--text-primary)' };
     if (isPending) return { label: 'PENDING GRADE ⏳', color: 'var(--warning)', text: 'var(--text-primary)' };
     return { label: 'FAILED ❌', color: 'var(--error)', text: '#FFFFFF' };
   };
@@ -488,34 +506,39 @@ const ChallengesPage = () => {
                     </button>
                   </form>
                 ) : (
-                  // coding challenge form
-                  <form onSubmit={handleSubmitCode} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Paste Your Code Here:</label>
-                      <textarea
-                        rows={12}
-                        value={submittedCode}
-                        onChange={(e) => setSubmittedCode(e.target.value)}
-                        style={{
-                          padding: '0.75rem',
-                          border: '2px solid var(--border-color)',
-                          borderRadius: 'var(--radius-sm)',
-                          fontSize: '0.82rem',
-                          fontFamily: 'monospace',
-                          background: 'var(--bg-secondary)',
-                          color: 'var(--text-primary)',
-                          resize: 'vertical'
-                        }}
+                  // coding challenge: solved and auto-graded in the browser sandbox
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {challengeDetail ? (
+                      <CodeSandbox
+                        key={selectedChallenge._id}
+                        language={challengeDetail.codingData?.language || 'python'}
+                        initialCode={submittedCode}
+                        onCodeChange={setSubmittedCode}
+                        testCases={challengeDetail.codingData?.testCases || []}
+                        onSubmit={handleSubmitCode}
+                        submitLabel="Submit solution"
+                        submitBlockedReason={
+                          codeSubmitted
+                            ? 'Submitted. Each challenge takes one submission.'
+                            : (!loading && !currentAttempt ? 'This challenge cannot be submitted again.' : '')
+                        }
+                        submitNote="One submission per challenge: run the tests first. Submitting runs every test, hidden ones included."
+                        ownerId={user?._id}
+                        editorLabel="Your solution"
                       />
-                    </div>
+                    ) : (
+                      <p style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Loading the challenge…</p>
+                    )}
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Repository URL (Optional):</label>
+                      <label htmlFor="challenge-repo-url" style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Repository URL (Optional):</label>
                       <input
+                        id="challenge-repo-url"
                         type="url"
                         placeholder="GitHub / CodePen link..."
                         value={codeUrl}
                         onChange={(e) => setCodeUrl(e.target.value)}
+                        disabled={codeSubmitted}
                         style={{
                           padding: '0.55rem',
                           border: '2px solid var(--border-color)',
@@ -527,16 +550,7 @@ const ChallengesPage = () => {
                         }}
                       />
                     </div>
-
-                    <button
-                      type="submit"
-                      disabled={submitting || !submittedCode.trim()}
-                      className="nb-btn nb-btn-primary"
-                      style={{ alignSelf: 'flex-start', opacity: submitting || !submittedCode.trim() ? 0.6 : 1 }}
-                    >
-                      {submitting ? 'Submitting...' : 'Submit Code'}
-                    </button>
-                  </form>
+                  </div>
                 )}
               </div>
 

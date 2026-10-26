@@ -8,12 +8,23 @@ import { SkeletonCardGrid } from '../../components/Skeleton/Skeleton';
 import { useApiRequest } from '../../hooks/useApiRequest';
 import { appendDateRange } from '../../utils/dateRangeParams';
 import { safeUrl } from '../../utils/safeUrl';
+import CodeExerciseFields from '../../components/CodeSandbox/CodeExerciseFields';
+import CodeExerciseSolver from '../../components/CodeSandbox/CodeExerciseSolver';
+import { codeExerciseFromTask, codeExercisePayload, emptyCodeExercise, languageLabel } from '../../utils/codeSandbox';
 
 const statusColor = (s) => {
   if (s === 'completed') return '#10b981';
   if (s === 'canceled') return '#ef4444';
   return '#f59e0b';
 };
+
+const isCodeTask = (task) => Boolean(task?.codeExercise?.language);
+
+const LanguageBadge = ({ language }) => (
+  <span className="modal-badge" style={{ background: 'var(--accent-orange)', color: 'var(--text-primary)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+    <i className="fa-solid fa-code" /> {languageLabel(language)}
+  </span>
+);
 
 const TasksPage = () => {
   const navigate = useNavigate();
@@ -45,6 +56,7 @@ const TasksPage = () => {
   const [deleteTask, setDeleteTask] = useState(null);
   const [viewTask, setViewTask] = useState(null);
   const [submitTask, setSubmitTask] = useState(null);
+  const [solveTask, setSolveTask] = useState(null);
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState(null);
 
@@ -53,7 +65,7 @@ const TasksPage = () => {
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
   const [studentSearch, setStudentSearch] = useState('');
 
-  const emptyForm = { title: '', description: '', dueDate: '', sessionId: '', studentProfileId: '', instructorId: '', status: 'pending', taskLinks: [{ title: '', link: '' }] };
+  const emptyForm = { title: '', description: '', dueDate: '', sessionId: '', studentProfileId: '', instructorId: '', status: 'pending', taskLinks: [{ title: '', link: '' }], codeExercise: emptyCodeExercise() };
   const [formData, setFormData] = useState(emptyForm);
   
   const [submissionLinks, setSubmissionLinks] = useState([{ name: '', url: '' }]);
@@ -139,7 +151,8 @@ const TasksPage = () => {
           dueDate: formData.dueDate,
           sessionIds: [formData.sessionId],
           studentProfileIds: selectedStudentIds,
-          ...(validLinks.length > 0 ? { taskLinks: validLinks } : {})
+          ...(validLinks.length > 0 ? { taskLinks: validLinks } : {}),
+          ...(formData.codeExercise.enabled ? { codeExercise: codeExercisePayload(formData.codeExercise) } : {}),
         };
         await request('/api/v1/task/bulk', 'POST', bulkPayload);
       } else {
@@ -152,6 +165,7 @@ const TasksPage = () => {
           instructorId: formData.instructorId || user?._id
         };
         if (validLinks.length > 0) payload.taskLinks = validLinks;
+        if (formData.codeExercise.enabled) payload.codeExercise = codeExercisePayload(formData.codeExercise);
         await request('/api/v1/task', 'POST', payload);
       }
 
@@ -174,6 +188,9 @@ const TasksPage = () => {
       if (formData.status) payload.status = formData.status;
       const validLinks = formData.taskLinks.filter(l => l.title.trim() || l.link.trim());
       if (validLinks.length > 0) payload.taskLinks = validLinks;
+      if (formData.codeExercise.enabled) payload.codeExercise = codeExercisePayload(formData.codeExercise);
+      // Unticking the exercise on a code task turns it back into a regular task
+      else if (isCodeTask(editTask)) payload.codeExercise = null;
       await request(`/api/v1/task/${editTask._id}`, 'PATCH', payload);
       setEditTask(null); await fetchTasks();
     } catch (err) { setFormError(err.message); }
@@ -248,7 +265,7 @@ const TasksPage = () => {
   };
 
   const openEdit = (t) => {
-    setFormData({ title: t.title || '', description: t.description || '', dueDate: t.dueDate ? new Date(t.dueDate).toISOString().slice(0, 16) : '', sessionId: t.sessionId?._id || t.sessionId || '', studentProfileId: t.studentProfileId?._id || t.studentProfileId || '', instructorId: t.instructorId?._id || t.instructorId || '', status: t.status || 'pending', taskLinks: t.taskLinks?.length > 0 ? t.taskLinks.map(l => ({ title: l.title || '', link: l.link || '' })) : [{ title: '', link: '' }] });
+    setFormData({ title: t.title || '', description: t.description || '', dueDate: t.dueDate ? new Date(t.dueDate).toISOString().slice(0, 16) : '', sessionId: t.sessionId?._id || t.sessionId || '', studentProfileId: t.studentProfileId?._id || t.studentProfileId || '', instructorId: t.instructorId?._id || t.instructorId || '', status: t.status || 'pending', taskLinks: t.taskLinks?.length > 0 ? t.taskLinks.map(l => ({ title: l.title || '', link: l.link || '' })) : [{ title: '', link: '' }], codeExercise: codeExerciseFromTask(t) });
     setFormError(null); setEditTask(t);
   };
 
@@ -457,6 +474,7 @@ const TasksPage = () => {
           </div>
         ))}
       </div>
+      <CodeExerciseFields value={formData.codeExercise} onChange={(codeExercise) => setFormData({ ...formData, codeExercise })} />
     </>
   );
 
@@ -524,6 +542,16 @@ const TasksPage = () => {
               <h3 style={{ fontSize: '1.1rem', margin: 0, flex: 1 }}>{task.title}</h3>
               <span className="modal-badge" style={{ background: statusColor(task.status) + '18', color: statusColor(task.status), textTransform: 'capitalize', marginLeft: '0.5rem' }}>{task.status}</span>
             </div>
+            {isCodeTask(task) && (
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <LanguageBadge language={task.codeExercise.language} />
+                {isAdmin && Array.isArray(task.codeExercise.testCases) && (
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    {task.codeExercise.testCases.length} tests, {task.codeExercise.testCases.filter(tc => tc.isHidden).length} hidden
+                  </span>
+                )}
+              </div>
+            )}
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', margin: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{task.description}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
               <span><i className="fa-solid fa-calendar-days" style={{ color: '#6366f1', marginRight: '0.3rem' }} />Due: <strong style={{ color: isOverdue(task.dueDate) && task.status !== 'completed' ? '#ef4444' : 'var(--text-primary)' }}>{task.dueDate ? new Date(task.dueDate).toLocaleString() : 'N/A'}</strong></span>
@@ -543,7 +571,11 @@ const TasksPage = () => {
             <div style={{ display: 'flex', gap: '0.35rem', marginTop: 'auto', paddingTop: '0.5rem', borderTop: '2px solid var(--border-color)' }}>
               <button onClick={() => setViewTask(task)} style={{ flex: 1, padding: '0.45rem', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '2px solid var(--border-color)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.03em', boxShadow: '2px 2px 0px 0px var(--shadow-color)', transition: 'all 0.1s ease' }}><i className="fa-solid fa-eye" /> View</button>
 
-              {isStudent && task.status === 'pending' && (
+              {isStudent && isCodeTask(task) && task.status !== 'canceled' && (
+                <button onClick={() => setSolveTask(task)} style={{ flex: 1, padding: '0.45rem', background: task.status === 'pending' ? 'var(--success)' : 'var(--info)', color: '#fff', border: '2px solid var(--border-color)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.03em', boxShadow: '2px 2px 0px 0px var(--shadow-color)', transition: 'all 0.1s ease' }}><i className="fa-solid fa-code" /> {task.status === 'pending' ? 'Solve' : 'Open'}</button>
+              )}
+
+              {isStudent && !isCodeTask(task) && task.status === 'pending' && (
                 <button onClick={() => openSubmit(task)} style={{ flex: 1, padding: '0.45rem', background: 'var(--success)', color: '#fff', border: '2px solid var(--border-color)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.03em', boxShadow: '2px 2px 0px 0px var(--shadow-color)', transition: 'all 0.1s ease' }}><i className="fa-solid fa-paper-plane" /> Submit</button>
               )}
 
@@ -582,6 +614,24 @@ const TasksPage = () => {
             </div>
             <div className="modal-section-label">Description</div>
             <p style={{ color: 'var(--text-secondary)' }}>{viewTask.description}</p>
+            {isCodeTask(viewTask) && (
+              <>
+                <div className="modal-section-label">Code Exercise</div>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <LanguageBadge language={viewTask.codeExercise.language} />
+                  {Array.isArray(viewTask.codeExercise.testCases) && (
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      {viewTask.codeExercise.testCases.length} test case(s), {viewTask.codeExercise.testCases.filter(tc => tc.isHidden).length} hidden
+                    </span>
+                  )}
+                </div>
+                {isStudent && viewTask.status !== 'canceled' && (
+                  <button type="button" className="modal-btn modal-btn-success" style={{ width: 'auto', marginBottom: '0.75rem' }} onClick={() => { setSolveTask(viewTask); setViewTask(null); }}>
+                    <i className="fa-solid fa-code" /> Open in Code Sandbox
+                  </button>
+                )}
+              </>
+            )}
             {viewTask.taskLinks?.length > 0 && (<><div className="modal-section-label">Resources</div><div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>{viewTask.taskLinks.map((l, i) => <a key={i} href={safeUrl(l.link)} target="_blank" rel="noreferrer" className="modal-chip" style={{ color: 'var(--brand-primary)' }}><i className="fa-solid fa-link" /> {l.title || 'Link'}</a>)}</div></>)}
             {role === 'admin' && (
               <div className="modal-detail-grid" style={{ marginTop: '1rem' }}>
@@ -684,6 +734,13 @@ const TasksPage = () => {
             {formLoading ? 'Submitting...' : <><i className="fa-solid fa-circle-check" /> Submit Task</>}
           </button>
         </form>
+      </Modal>
+
+      {/* SOLVE MODAL — the task's code exercise in the browser sandbox */}
+      <Modal isOpen={!!solveTask} onClose={() => setSolveTask(null)} title={`Solve — ${solveTask?.title || ''}`} size="xl">
+        {solveTask && (
+          <CodeExerciseSolver key={solveTask._id} task={solveTask} ownerId={user?._id} onSubmitted={fetchTasks} />
+        )}
       </Modal>
 
       {/* DELETE MODAL */}

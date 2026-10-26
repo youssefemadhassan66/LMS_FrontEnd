@@ -1,0 +1,551 @@
+/* ═══════════════════════════════════════════════════════════════════════════════
+   CODE SANDBOX — editor, stdin/output, test cases
+   Sized by its container, not the viewport: the same component sits in a
+   dialog, in half of the challenge view and across the whole playground page.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.cs-root {
+  --cs-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  --cs-line: 1.55;
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+/* ── Toolbar ── */
+.cs-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.cs-toolbar-start,
+.cs-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cs-btn {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.cs-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: var(--shadow-sm);
+}
+
+.cs-btn-submit {
+  background: var(--success);
+  color: #fff;
+}
+
+.cs-btn-submit:hover:not(:disabled) {
+  background: #059669;
+  color: #fff;
+}
+
+.cs-select {
+  padding: 0.45rem 0.75rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cs-lang-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.7rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--accent-yellow);
+  color: var(--text-primary);
+}
+
+.cs-lang-python { background: var(--accent-orange); }
+.cs-lang-javascript { background: var(--accent-peach); }
+
+.cs-shortcut {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.cs-shortcut kbd {
+  font-family: var(--cs-mono);
+  font-size: 0.72rem;
+  padding: 0.05rem 0.35rem;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+}
+
+.cs-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+/* ── Workspace: editor beside input/output when there is room ── */
+.cs-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
+}
+
+@container (min-width: 760px) {
+  .cs-workspace {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  }
+}
+
+/* ── Editor ── */
+.cs-editor {
+  display: flex;
+  min-width: 0;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.cs-editor:focus-within {
+  border-color: var(--brand-primary);
+}
+
+.cs-gutter,
+.cs-textarea {
+  font-family: var(--cs-mono);
+  font-size: 0.85rem;
+  line-height: var(--cs-line);
+  padding-top: 0.75rem;
+}
+
+.cs-gutter {
+  flex: 0 0 auto;
+  min-width: 2.9rem;
+  /* Extra room so it can scroll as far as a textarea with a horizontal scrollbar */
+  padding: 0.75rem 0.6rem 2.5rem;
+  text-align: right;
+  white-space: pre;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border-right: 2px solid var(--border-color);
+  overflow: hidden;
+  user-select: none;
+}
+
+.cs-textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--cs-editor-min-height, 18rem);
+  padding: 0.75rem 0.85rem;
+  border: none;
+  outline: none;
+  resize: vertical;
+  background: transparent;
+  color: var(--text-primary);
+  white-space: pre;
+  overflow: auto;
+  tab-size: 4;
+}
+
+/* ── Input / output ── */
+.cs-io {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.cs-panel-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.cs-output-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.cs-output-meta {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+.cs-stdin {
+  min-height: 5.5rem;
+  padding: 0.6rem 0.75rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--cs-mono);
+  font-size: 0.82rem;
+  line-height: var(--cs-line);
+  resize: vertical;
+  outline: none;
+}
+
+.cs-stdin:focus {
+  border-color: var(--brand-primary);
+}
+
+.cs-output {
+  flex: 1 1 auto;
+  min-height: 8rem;
+  max-height: 24rem;
+  overflow: auto;
+  padding: 0.6rem 0.75rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+}
+
+.cs-stdout,
+.cs-stderr,
+.cs-test-pre,
+.cs-viewer-code {
+  margin: 0;
+  font-family: var(--cs-mono);
+  font-size: 0.82rem;
+  line-height: var(--cs-line);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cs-stdout {
+  color: var(--text-primary);
+}
+
+.cs-stderr {
+  color: var(--error);
+}
+
+.cs-placeholder {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Test cases ── */
+.cs-tests {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cs-tests-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.cs-tests-header h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.cs-tests-count {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.cs-test-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cs-test {
+  padding: 0.65rem 0.75rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--card-bg);
+}
+
+.cs-test-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.cs-test-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.cs-test-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cs-test-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.5rem;
+}
+
+.cs-test-label {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.cs-test-pre {
+  max-height: 8rem;
+  overflow: auto;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+}
+
+.cs-test-hidden {
+  margin: 0;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.cs-test-stderr {
+  margin-top: 0.45rem;
+  max-height: 8rem;
+  overflow: auto;
+}
+
+.cs-chip {
+  flex-shrink: 0;
+  padding: 0.15rem 0.55rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.cs-chip-pass { background: var(--success); color: #fff; }
+.cs-chip-fail { background: var(--error); color: #fff; }
+.cs-chip-muted { background: var(--bg-tertiary); color: var(--text-secondary); }
+
+/* ── Submit ── */
+.cs-submit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding-top: 0.85rem;
+  border-top: 2px solid var(--border-color);
+}
+
+.cs-submit-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.cs-submit-note {
+  margin: 0;
+  flex: 1 1 14rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.cs-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.65rem 0.85rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  color: var(--text-primary);
+}
+
+.cs-summary-pass { background: var(--accent-peach); }
+.cs-summary-partial { background: var(--accent-yellow); }
+.cs-summary-fail { background: var(--accent-rose); }
+.cs-summary-info { background: var(--bg-secondary); }
+
+.cs-error {
+  padding: 0.65rem 0.85rem;
+  border: 2px solid var(--error);
+  border-radius: var(--radius-sm);
+  background: var(--accent-rose);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* ── Read-only viewer (someone else's code) ── */
+.cs-viewer {
+  --cs-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  --cs-line: 1.55;
+  display: flex;
+  align-items: flex-start;
+  overflow: auto;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+}
+
+.cs-viewer-gutter {
+  position: sticky;
+  left: 0;
+  flex: 0 0 auto;
+  min-height: 100%;
+  padding: 0.6rem 0.5rem;
+  min-width: 2.6rem;
+  text-align: right;
+  white-space: pre;
+  font-family: var(--cs-mono);
+  font-size: 0.8rem;
+  line-height: var(--cs-line);
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border-right: 2px solid var(--border-color);
+  user-select: none;
+}
+
+.cs-viewer-code {
+  flex: 1 1 auto;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.8rem;
+  white-space: pre;
+  word-break: normal;
+  color: var(--text-primary);
+}
+
+/* ── Instructor form: code exercise ── */
+.cx-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-top: 0.75rem;
+  padding: 1rem;
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+}
+
+.cx-tests-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cx-test {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+}
+
+.cx-test-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.cx-test-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.cx-hidden-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.cx-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.82rem;
+  min-height: 3.75rem;
+}
+
+/* Language badge on task cards */
+.cs-task-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Page-level card around the sandbox. glass-panel lifts on hover, which
+   makes a workspace you type in jump under the cursor. */
+.glass-panel.cs-panel {
+  padding: 1.25rem;
+}
+
+.glass-panel.cs-panel:hover {
+  transform: none;
+  box-shadow: var(--shadow-md);
+}
+
+@media (max-width: 600px) {
+  .glass-panel.cs-panel {
+    padding: 0.85rem;
+  }
+}

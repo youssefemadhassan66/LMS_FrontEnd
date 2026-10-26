@@ -32,6 +32,7 @@ const navConfig = {
     { to: '/dashboard/leaderboard', icon: 'fa-solid fa-trophy', label: 'Leaderboard' },
     { to: '/dashboard/achievements', icon: 'fa-solid fa-medal', label: 'Achievements' },
     { to: '/dashboard/challenges', icon: 'fa-solid fa-gamepad', label: 'Challenges' },
+    { to: '/dashboard/sandbox', icon: 'fa-solid fa-code', label: 'Code Sandbox' },
   ],
   parent: [
     { to: '/dashboard', icon: 'fa-solid fa-children', label: 'Children', end: true },
@@ -65,6 +66,7 @@ const navConfig = {
     { to: '/dashboard/progress', icon: 'fa-solid fa-chart-bar', label: 'Progress Reports' },
     { to: '/dashboard/leaderboard', icon: 'fa-solid fa-trophy', label: 'Leaderboard' },
     { to: '/dashboard/challenges/manage', icon: 'fa-solid fa-gears', label: 'Manage Challenges' },
+    { to: '/dashboard/sandbox', icon: 'fa-solid fa-code', label: 'Code Sandbox' },
   ],
   admin: [
     { to: '/dashboard', icon: 'fa-solid fa-house', label: 'Overview', end: true },
@@ -85,6 +87,7 @@ const navConfig = {
     { to: '/dashboard/progress', icon: 'fa-solid fa-chart-bar', label: 'Progress Reports' },
     { to: '/dashboard/leaderboard', icon: 'fa-solid fa-trophy', label: 'Leaderboard' },
     { to: '/dashboard/challenges/manage', icon: 'fa-solid fa-gears', label: 'Manage Challenges' },
+    { to: '/dashboard/sandbox', icon: 'fa-solid fa-code', label: 'Code Sandbox' },
   ],
 };
 

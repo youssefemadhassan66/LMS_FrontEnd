@@ -19,6 +19,7 @@
     "@excalidraw/excalidraw": "^0.18.1",
     "lucide-react": "^1.8.0",
     "postprocessing": "^6.39.2",
+    "pyodide": "314.0.7",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.14.0",
