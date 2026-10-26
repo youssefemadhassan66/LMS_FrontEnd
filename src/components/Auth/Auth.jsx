@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import AuthShell from "./AuthShell";
 import { TextField, PasswordField } from "./AuthField";
@@ -60,8 +60,15 @@ const PITCH = {
   },
 };
 
+// Each form has its own URL so a sign-up CTA can link straight to sign-up, and
+// a refresh, bookmark or shared link reopens the form that was showing. One
+// component still serves both, so the shell and the tab animation are shared.
+const LOGIN_PATH = "/login";
+const SIGNUP_PATH = "/signup";
+
 const Auth = () => {
-  const [isLogin, setIsLogin] = useState(true);
+  const location = useLocation();
+  const isLogin = location.pathname !== SIGNUP_PATH;
   const navigate = useNavigate();
   const { user, login, signup, loading, error, setError } = useAuth();
 
@@ -115,10 +122,17 @@ const Auth = () => {
     }
   };
 
+  // Replace, not push: flipping a tab is not a page visit, so Back should
+  // still leave the auth screen rather than step through every toggle. The
+  // query string and router state ride along, so a ProtectedRoute redirect's
+  // `from` survives a detour through the other tab.
   const switchMode = (login) => {
     if (login === isLogin) return;
-    setIsLogin(login);
     setError(null);
+    navigate(
+      { pathname: login ? LOGIN_PATH : SIGNUP_PATH, search: location.search },
+      { replace: true, state: location.state },
+    );
   };
 
   const pitch = isLogin ? PITCH.login : PITCH.signup;

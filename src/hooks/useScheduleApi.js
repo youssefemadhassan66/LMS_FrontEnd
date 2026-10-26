@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useApiRequest } from './useApiRequest';
+import logger from '../utils/logger';
 
 /**
  * Schedule hook — builds schedule entries from sessions + tasks.
@@ -131,34 +132,34 @@ const useScheduleApi = () => {
       const sessionParams = new URLSearchParams({ page: '1', limit: '500', sort: 'date' });
       const taskParams    = new URLSearchParams({ page: '1', limit: '500', sort: 'dueDate' });
 
-      console.log('[Schedule] Fetching:', sessionBase, taskBase, '| role:', role);
+      logger.log('[Schedule] Fetching:', sessionBase, taskBase, '| role:', role);
 
       const [sessionsRes, tasksRes] = await Promise.allSettled([
         request(`${sessionBase}?${sessionParams.toString()}`),
         request(`${taskBase}?${taskParams.toString()}`),
       ]);
 
-      console.log('[Schedule] sessions:', sessionsRes.status, sessionsRes.status === 'fulfilled' ? sessionsRes.value : sessionsRes.reason);
-      console.log('[Schedule] tasks:', tasksRes.status, tasksRes.status === 'fulfilled' ? tasksRes.value : tasksRes.reason);
+      logger.log('[Schedule] sessions:', sessionsRes.status, sessionsRes.status === 'fulfilled' ? sessionsRes.value : sessionsRes.reason);
+      logger.log('[Schedule] tasks:', tasksRes.status, tasksRes.status === 'fulfilled' ? tasksRes.value : tasksRes.reason);
 
       const sessionList = sessionsRes.status === 'fulfilled' ? extractList(sessionsRes.value) : [];
       const taskList    = tasksRes.status === 'fulfilled'    ? extractList(tasksRes.value)    : [];
 
-      console.log('[Schedule] sessionList:', sessionList.length, '| taskList:', taskList.length);
+      logger.log('[Schedule] sessionList:', sessionList.length, '| taskList:', taskList.length);
 
       const sessionEntries = sessionList.map(sessionToEntry).filter(Boolean);
       const taskEntries    = taskList.map(taskToEntry).filter(Boolean);
 
-      console.log('[Schedule] transformed — sessions:', sessionEntries.length, '| tasks:', taskEntries.length);
+      logger.log('[Schedule] transformed — sessions:', sessionEntries.length, '| tasks:', taskEntries.length);
 
       const allTransformed = [...sessionEntries, ...taskEntries];
       const weekEntries = filterToWeek(allTransformed, start, end);
 
-      console.log('[Schedule] after week filter:', weekEntries.length, '| week:', start.toISOString(), '→', end.toISOString());
+      logger.log('[Schedule] after week filter:', weekEntries.length, '| week:', start.toISOString(), '→', end.toISOString());
 
       // Show all if nothing in current week but data exists
       if (weekEntries.length === 0 && allTransformed.length > 0) {
-        console.log('[Schedule] Nothing in current week — showing all entries');
+        logger.log('[Schedule] Nothing in current week — showing all entries');
         setEntries(allTransformed);
       } else {
         setEntries(weekEntries);
@@ -167,7 +168,7 @@ const useScheduleApi = () => {
 
     } catch (err) {
       if (err.name === 'AbortError') return;
-      console.error('[Schedule] Error:', err);
+      logger.error('[Schedule] Error:', err);
       setError(err.message || 'Could not load schedule.');
     } finally {
       if (!controller.signal.aborted) setLoading(false);

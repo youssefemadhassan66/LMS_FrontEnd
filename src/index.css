@@ -58,6 +58,17 @@
   /* Typography */
   --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Data colours — one per measure, the same on every chart, card and
+     legend: a review is always amber, attendance always cyan. Deep enough
+     for 3:1 against white cards. */
+  --data-review: #D97706;
+  --data-tasks: #2563EB;
+  --data-attendance: #0891B2;
+  --data-exams: #059669;
+  --data-score: #7C3AED;
+  --data-ontime: #DB2777;
+  --chart-grid: rgba(100, 116, 139, 0.28);
 }
 
 /* `data-cosmic-space` is set by CosmicScene once the home-page scroll journey
@@ -67,7 +78,10 @@
 [data-theme='dark'],
 [data-cosmic-space='1'] {
   /* =====================================================================
-     DARK THEME — Sleek Warm Zinc (Neo-Brutalist)
+     DARK THEME — Navy slate (Neo-Brutalist)
+     Every surface and border is tinted toward the navy page. Cards and borders
+     used to be neutral zinc (#27272A / #52525B), which read as a second colour
+     family laid over the blue background on every dashboard screen.
      ===================================================================== */
   
   /* Backgrounds */
@@ -98,8 +112,8 @@
   --info: #3B82F6;
 
   /* Borders & Shadows */
-  --border-color: #52525B;
-  --border-width: 3px;
+  --border-color: #334463;
+  --border-width: 2px;
   --shadow-color: #000000;
   --shadow-sm: 3px 3px 0px 0px var(--shadow-color);
   --shadow-md: 5px 5px 0px 0px var(--shadow-color);
@@ -107,11 +121,20 @@
   --shadow-hover: 6px 6px 0px 0px var(--brand-primary);
   
   /* Card Surfaces */
-  --card-bg: #27272A;
+  --card-bg: #162033;
   --card-border: var(--border-width) solid var(--border-color);
 
   /* Dot grid */
   --dot-color: rgba(148, 163, 184, 0.1);
+
+  /* Data colours, lifted to read on navy. */
+  --data-review: #FBBF24;
+  --data-tasks: #60A5FA;
+  --data-attendance: #22D3EE;
+  --data-exams: #34D399;
+  --data-score: #A78BFA;
+  --data-ontime: #F472B6;
+  --chart-grid: rgba(148, 163, 184, 0.16);
 }
 
 /* =====================================================================

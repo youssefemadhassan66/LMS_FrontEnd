@@ -146,6 +146,9 @@
   --cxc-muted: #55637A;
   --cxc-accent: #2563EB;
   --cxc-btn-ink: #FFFFFF;
+  --cxc-menu-bg: #FFFFFF;
+  --cxc-menu-hover: rgba(37, 99, 235, 0.1);
+  --cxc-menu-shadow: 5px 5px 0 var(--cxc-shadow);
 
   background: var(--cxc-panel);
   border: 3px solid var(--cxc-ink);
@@ -165,6 +168,9 @@
   --cxc-muted: rgba(178, 196, 226, 0.82);
   --cxc-accent: #6ea8ff;
   --cxc-btn-ink: #05070f;
+  --cxc-menu-bg: #0b1120;
+  --cxc-menu-hover: rgba(255, 255, 255, 0.08);
+  --cxc-menu-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
 }
 /* .glass-panel lifts on hover; a page-wide bar should not. */
 .landing-navbar.cosmic:hover,
@@ -313,13 +319,19 @@
   color: var(--brand-primary);
 }
 
-/* The cosmic navbar is translucent over a dark hero; an inherited light panel
-   would read as a different site's menu dropped on top of it. */
+/* The hamburger sits beside the theme toggle, so it wears the same frame.
+   A translucent white fill read fine over deep space but vanished against
+   the daylight bar, leaving a bare glyph next to a boxed button. */
 .landing-navbar.cosmic .nav-toggle {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: var(--cxc-border, rgba(255, 255, 255, 0.18));
+  background: var(--cxc-panel);
+  border: 2px solid var(--cxc-ink);
+  border-radius: 6px;
   color: var(--cxc-text);
-  box-shadow: none;
+  box-shadow: 3px 3px 0 var(--cxc-shadow);
+}
+.landing-navbar.cosmic .nav-toggle:hover {
+  background: var(--cxc-panel);
+  color: var(--cxc-accent);
 }
 
 /* Opaque on purpose, not translucent-plus-blur. --cxc-panel is only ~74%
@@ -328,23 +340,92 @@
    establishes a backdrop root, so there is no un-filtered backdrop left to
    sample. Translucent alone put the hero headline straight through the links.
    The bar is a thin strip over empty sky; this panel covers 238px of live
-   copy, so it needs to actually cover it. */
+   copy, so it needs to actually cover it. The fill is a per-theme token:
+   a fixed navy panel under the light theme's near-black link ink left the
+   links painted dark-on-dark and unreadable. */
 .landing-navbar.cosmic .nav-mobile-menu {
-  background: #0b1120;
-  border-color: var(--cxc-border, rgba(255, 255, 255, 0.18));
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+  background: var(--cxc-menu-bg);
+  border: 3px solid var(--cxc-ink);
+  border-radius: 10px;
+  box-shadow: var(--cxc-menu-shadow);
 }
 
-.landing-navbar.cosmic .nav-mobile-menu a { color: var(--cxc-text); }
+.landing-navbar.cosmic .nav-mobile-menu a {
+  color: var(--cxc-text);
+  font-family: var(--font-heading);
+  font-weight: 700;
+}
 
 .landing-navbar.cosmic .nav-mobile-menu a:hover,
 .landing-navbar.cosmic .nav-mobile-menu a.active {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--cxc-menu-hover);
   color: var(--cxc-accent);
+}
+
+/* ─── Back to top ───────────────────────────────────────────────────────
+   Wears the cosmic chrome's brutalist frame. The tokens live on the navbar,
+   not here, so the button carries its own light/dark copies. */
+.back-to-top {
+  --btt-ink: #1C1917;
+  --btt-bg: #2563EB;
+  --btt-glyph: #FFFFFF;
+
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 90;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--btt-bg);
+  color: var(--btt-glyph);
+  border: 3px solid var(--btt-ink);
+  border-radius: 8px;
+  box-shadow: 4px 4px 0 var(--btt-ink);
+  font-size: 1.1rem;
+  cursor: pointer;
+  animation: bttIn 0.18s ease;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+[data-theme='dark'] .back-to-top,
+[data-cosmic-space='1'] .back-to-top {
+  --btt-ink: #6c8ac4;
+  --btt-bg: #6ea8ff;
+  --btt-glyph: #05070f;
+}
+.back-to-top:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--btt-ink);
+}
+.back-to-top:active {
+  transform: translate(3px, 3px);
+  box-shadow: none;
+}
+.back-to-top:focus-visible {
+  outline: 3px solid var(--btt-bg);
+  outline-offset: 3px;
+}
+
+/* Transform only, for the same stalled-animation reason as navMenuIn. */
+@keyframes bttIn {
+  from { transform: translateY(8px); }
+  to   { transform: translateY(0); }
+}
+
+@media (max-width: 520px) {
+  .back-to-top {
+    right: 1rem;
+    bottom: 1rem;
+    width: 44px;
+    height: 44px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .nav-mobile-menu { animation: none; }
+  .back-to-top { animation: none; transition: none; }
 }
 
 @media (max-width: 768px) {
@@ -377,6 +458,15 @@
     gap: 1rem;
     margin: 1rem;
     text-align: center;
+  }
+}
+
+/* Login lives in the hamburger panel below 640px. Between 520px and 640px the
+   full wordmark is still shown, and with Login in the bar as well the brand
+   ran straight into the theme toggle. */
+@media (max-width: 640px) {
+  .btn-login {
+    display: none;
   }
 }
 
@@ -417,11 +507,6 @@
   .nav-actions {
     gap: 0.4rem;
     flex-shrink: 0;
-  }
-
-  /* Login lives in the hamburger panel at this width. */
-  .btn-login {
-    display: none;
   }
 
   .btn-signup {

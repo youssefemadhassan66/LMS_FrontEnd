@@ -6,30 +6,14 @@ import { useApiRequest } from '../hooks/useApiRequest';
 import { getSocketUrl } from '../utils/apiUrl';
 import { normalizeAppLink } from '../utils/appLinks';
 import { notificationIcon } from '../utils/notificationIcons';
+import { xpReason } from '../components/Gamification/xpReasons';
+import logger from '../utils/logger';
+import './SocketToasts.css';
 
 const SocketContext = createContext();
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const useSocket = () => useContext(SocketContext);
-
-const getNotificationDetails = (type) => {
-  const bgColors = {
-    schedule_reminder: 'var(--accent-orange, #f97316)',
-    new_session: 'var(--brand-primary, #2563eb)',
-    schedule_updated: 'var(--accent-blue, #3b82f6)',
-    new_task: 'var(--accent-purple, #a855f7)',
-    xp_earned: 'var(--accent-yellow, #eab308)',
-    level_up: 'var(--success, #22c55e)',
-    badge_unlocked: 'var(--accent-rose, #ec4899)',
-    new_submission: 'var(--accent-teal, #14b8a6)',
-    new_message: 'var(--accent-indigo, #6366f1)',
-    canvas_shared: 'var(--accent-purple, #a855f7)',
-  };
-  return {
-    icon: notificationIcon(type).icon,
-    bgColor: bgColors[type] || 'var(--brand-primary, #2563eb)',
-  };
-};
 
 export const SocketProvider = ({ children }) => {
   const { token, user } = useAuth();
@@ -91,7 +75,7 @@ export const SocketProvider = ({ children }) => {
         totalPages: res.totalPages || 1
       };
     } catch (err) {
-      console.error('Failed to fetch notifications:', err);
+      logger.error('Failed to fetch notifications:', err);
       return { data: [], total: 0, totalPages: 1 };
     } finally {
       setLoading(false);
@@ -106,7 +90,7 @@ export const SocketProvider = ({ children }) => {
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (err) {
-      console.error('Failed to mark notification as read:', err);
+      logger.error('Failed to mark notification as read:', err);
     }
   }, [request]);
 
@@ -116,7 +100,7 @@ export const SocketProvider = ({ children }) => {
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
     } catch (err) {
-      console.error('Failed to mark all notifications as read:', err);
+      logger.error('Failed to mark all notifications as read:', err);
     }
   }, [request]);
 
@@ -133,7 +117,12 @@ export const SocketProvider = ({ children }) => {
   }, [token]);
 
   useEffect(() => {
-    if (!token) return;
+    // Wait for the user as well as the token. On a page load the token comes
+    // from storage first and the user a moment later; connecting before that
+    // meant tearing the socket down mid-handshake when the role arrived, which
+    // the browser reports as "WebSocket is closed before the connection is
+    // established".
+    if (!token || !userRole) return;
 
     const backendUrl = getSocketUrl();
     
@@ -146,7 +135,6 @@ export const SocketProvider = ({ children }) => {
     });
 
     newSocket.on('connect', () => {
-      console.log('Socket.io connected with ID:', newSocket.id);
       setSocket(newSocket);
     });
 
@@ -156,14 +144,14 @@ export const SocketProvider = ({ children }) => {
     // (expired token, deactivated account) and an unroutable /socket.io/ path
     // looked identical — like nothing had happened at all.
     newSocket.on('connect_error', (err) => {
-      console.error(
+      logger.error(
         `Socket.io connection failed (${newSocket.io.engine?.transport?.name ?? 'unknown transport'}):`,
         err.message,
       );
     });
 
     newSocket.on('disconnect', (reason) => {
-      console.warn('Socket.io disconnected:', reason);
+      logger.log('Socket.io disconnected:', reason);
       // "io server disconnect" means the server dropped us deliberately — an
       // expired access token, or an account that is no longer active. The
       // client does not auto-reconnect from that state, and it should not:
@@ -189,25 +177,28 @@ export const SocketProvider = ({ children }) => {
       const isGamification = ['xp_earned', 'level_up', 'badge_unlocked'].includes(normalizedNotif.type);
 
       if (!(isStudent && isGamification)) {
-        const details = getNotificationDetails(normalizedNotif.type);
+        const details = notificationIcon(normalizedNotif.type);
         addToast({
           type: 'notification',
           title: normalizedNotif.title,
           message: normalizedNotif.message,
           icon: details.icon,
-          bgColor: details.bgColor,
+          tone: details.color,
           link: normalizedNotif.link
         });
       }
     });
 
+    // Gamification toasts open My achievements, where the XP, level and
+    // badge are shown in full.
     newSocket.on('xp:earned', (data) => {
       addToast({
         type: 'xp',
-        title: `+${data.amount} XP Earned!`,
-        message: `Reason: ${data.reason ? data.reason.replace(/_/g, ' ') : 'Task completion'}`,
+        title: `+${data.amount} XP`,
+        message: xpReason(data.reason).label,
         icon: 'fa-solid fa-bolt',
-        bgColor: 'var(--accent-yellow)',
+        tone: 'var(--brand-primary)',
+        link: '/dashboard/achievements',
         data
       });
     });
@@ -215,21 +206,24 @@ export const SocketProvider = ({ children }) => {
     newSocket.on('level:up', (data) => {
       addToast({
         type: 'level',
-        title: `Level Up!`,
-        message: `Congratulations! You reached Level ${data.newLevel}!`,
+        title: `Level ${data.newLevel}!`,
+        message: 'You levelled up. Keep it going!',
         icon: 'fa-solid fa-crown',
-        bgColor: 'var(--success)',
+        tone: 'var(--data-review)',
+        link: '/dashboard/achievements',
         data
       });
     });
 
     newSocket.on('badge:unlocked', (data) => {
+      const rarity = data.rarity ? `${data.rarity[0].toUpperCase()}${data.rarity.slice(1)} badge` : 'New badge';
       addToast({
         type: 'badge',
-        title: `Badge Unlocked: ${data.name}!`,
-        message: `Rare ${data.rarity} badge unlocked (+${data.xpReward} XP)`,
-        icon: 'fa-solid fa-award',
-        bgColor: 'var(--accent-rose)',
+        title: `Badge unlocked: ${data.name}`,
+        message: data.xpReward ? `${rarity} · +${data.xpReward} XP` : rarity,
+        icon: 'fa-solid fa-medal',
+        tone: 'var(--data-score)',
+        link: '/dashboard/achievements',
         data
       });
     });
@@ -256,86 +250,40 @@ export const SocketProvider = ({ children }) => {
     >
       {children}
 
-      {/* Floating Neo-Brutalist Toasts */}
-      <div style={{
-        position: 'fixed',
-        bottom: '24px',
-        right: '24px',
-        zIndex: 9999,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px',
-        maxWidth: '350px',
-        width: '100%',
-        pointerEvents: 'none'
-      }}>
-        {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            onClick={() => {
-              if (toast.link) {
-                navigate(toast.link);
-                removeToast(toast.id);
-              }
-            }}
-            style={{
-              pointerEvents: 'auto',
-              background: toast.bgColor || 'var(--card-bg)',
-              color: 'var(--text-primary)',
-              border: '3px solid var(--border-color)',
-              boxShadow: 'var(--shadow-md)',
-              borderRadius: 'var(--radius-sm)',
-              padding: '1rem',
-              display: 'flex',
-              gap: '0.75rem',
-              alignItems: 'center',
-              animation: 'popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
-              position: 'relative',
-              cursor: toast.link ? 'pointer' : 'default',
-              transition: 'transform 0.1s ease, box-shadow 0.1s ease',
-            }}
-            onMouseEnter={e => {
-              if (toast.link) {
-                e.currentTarget.style.transform = 'translate(-2px, -2px)';
-                e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-              }
-            }}
-            onMouseLeave={e => {
-              if (toast.link) {
-                e.currentTarget.style.transform = 'none';
-                e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-              }
-            }}
-          >
-            <span style={{ fontSize: '1.5rem', flexShrink: 0, color: toast.bgColor }}>
-              {typeof toast.icon === 'string' && toast.icon.startsWith('fa-')
-                ? <i className={toast.icon} />
-                : toast.icon}
-            </span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{toast.title}</h4>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{toast.message}</p>
+      {/* Floating toasts, newest at the bottom */}
+      <div className="socket-toasts" aria-live="polite">
+        {toasts.map((toast) => {
+          const body = (
+            <>
+              <span className="socket-toast__icon" aria-hidden="true">
+                {typeof toast.icon === 'string' && toast.icon.startsWith('fa-')
+                  ? <i className={toast.icon} />
+                  : toast.icon}
+              </span>
+              <span className="socket-toast__text">
+                <strong>{toast.title}</strong>
+                {toast.message && <span>{toast.message}</span>}
+              </span>
+            </>
+          );
+          return (
+            <div key={toast.id} className={`socket-toast is-${toast.type || 'notification'}`}
+              style={{ '--tone': toast.tone || 'var(--brand-primary)' }}>
+              {toast.link ? (
+                <button type="button" className="socket-toast__main"
+                  onClick={() => { navigate(toast.link); removeToast(toast.id); }}>
+                  {body}
+                </button>
+              ) : (
+                <div className="socket-toast__main">{body}</div>
+              )}
+              <button type="button" className="socket-toast__close" aria-label="Dismiss"
+                onClick={() => removeToast(toast.id)}>
+                <i className="fa-solid fa-xmark" />
+              </button>
             </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                removeToast(toast.id);
-              }}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--text-muted)',
-                fontSize: '1.25rem',
-                cursor: 'pointer',
-                padding: '0.25rem',
-                lineHeight: 1,
-                alignSelf: 'flex-start',
-              }}
-            >
-              ×
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </SocketContext.Provider>
   );

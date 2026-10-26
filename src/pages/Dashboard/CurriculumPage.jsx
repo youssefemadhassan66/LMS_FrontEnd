@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApiRequest } from '../../hooks/useApiRequest';
 import './Curriculum.css';
+import logger from '../../utils/logger';
 
 const CurriculumPage = () => {
   const { request } = useApiRequest();
@@ -20,7 +21,7 @@ const CurriculumPage = () => {
           setError('Could not retrieve curriculum data.');
         }
       } catch (err) {
-        console.error('Error fetching curriculum:', err);
+        logger.error('Error fetching curriculum:', err);
         setError(err.message || 'Failed to connect to the server.');
       } finally {
         setLoading(false);

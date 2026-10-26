@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Outlet, NavLink, useNavigate, useLocation, useNavigationType } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import NotificationBell from '../NotificationBell/NotificationBell';
@@ -8,86 +8,168 @@ import Logo from '../Logo/Logo';
 import { getAvatarUrl } from '../../utils/avatar';
 import GamificationWidget from '../Gamification/GamificationWidget';
 import useScrollReveal from '../../hooks/useScrollReveal';
+import PageStage from '../Loading/PageStage';
+import { preloadDashboardPages } from '../../routes/dashboardPages';
+import GuidedTour from '../Tour/GuidedTour';
+import { hasSeenTour, markTourSeen, tourStepsFor } from '../Tour/tourSteps';
 import './DashboardLayout.css';
+import '../../pages/Dashboard/Dashboard.css';
 // Must load after DashboardLayout.css: it overrides inline styles on the
 // dashboard pages, which no ordinary media query can reach.
 import './DashboardMobile.css';
 
+// The sidebar, per role, in labelled groups. A flat list of 15+ links is hard
+// to scan, especially for a student or a parent seeing it for the first time.
 const navConfig = {
   student: [
-    { to: '/dashboard', icon: 'fa-solid fa-house', label: 'Overview', end: true },
-    { to: '/dashboard/schedule', icon: 'fa-solid fa-table-cells', label: 'Schedule' },
-    { to: '/dashboard/sessions', icon: 'fa-solid fa-calendar-days', label: 'My Sessions' },
-    { to: '/dashboard/tasks', icon: 'fa-solid fa-list-check', label: 'My Tasks' },
-    { to: '/dashboard/submissions', icon: 'fa-solid fa-paper-plane', label: 'Submissions' },
-    { to: '/dashboard/exams', icon: 'fa-solid fa-pen-to-square', label: 'My Exams' },
-    { to: '/dashboard/canvas', icon: 'fa-solid fa-pen-ruler', label: 'Canvas' },
-    { to: '/dashboard/reviews', icon: 'fa-solid fa-star', label: 'My Reviews' },
-    { to: '/dashboard/external', icon: 'fa-solid fa-globe', label: 'External Courses' },
-    { to: '/dashboard/announcements', icon: 'fa-solid fa-bullhorn', label: 'Announcements' },
-    { to: '/dashboard/notifications', icon: 'fa-solid fa-bell', label: 'Notifications' },
-    { to: '/dashboard/channels', icon: 'fa-solid fa-people-group', label: 'Learning Team' },
-    { to: '/dashboard/messages', icon: 'fa-solid fa-message', label: 'Messages' },
-    { to: '/dashboard/progress', icon: 'fa-solid fa-chart-line', label: 'My Progress' },
-    { to: '/dashboard/leaderboard', icon: 'fa-solid fa-trophy', label: 'Leaderboard' },
-    { to: '/dashboard/achievements', icon: 'fa-solid fa-medal', label: 'Achievements' },
-    { to: '/dashboard/challenges', icon: 'fa-solid fa-gamepad', label: 'Challenges' },
-    { to: '/dashboard/sandbox', icon: 'fa-solid fa-code', label: 'Code Sandbox' },
+    {
+      section: 'My learning',
+      items: [
+        { to: '/dashboard', icon: 'fa-solid fa-house', label: 'Overview', end: true, tour: 'nav-overview' },
+        { to: '/dashboard/schedule', icon: 'fa-solid fa-table-cells', label: 'Schedule', tour: 'nav-schedule' },
+        { to: '/dashboard/sessions', icon: 'fa-solid fa-calendar-days', label: 'My Sessions' },
+        { to: '/dashboard/tasks', icon: 'fa-solid fa-list-check', label: 'My Tasks', tour: 'nav-tasks' },
+        { to: '/dashboard/submissions', icon: 'fa-solid fa-paper-plane', label: 'Submissions', tour: 'nav-submissions' },
+        { to: '/dashboard/exams', icon: 'fa-solid fa-pen-to-square', label: 'My Exams' },
+      ],
+    },
+    {
+      section: 'Practice',
+      items: [
+        { to: '/dashboard/canvas', icon: 'fa-solid fa-pen-ruler', label: 'Canvas' },
+        { to: '/dashboard/challenges', icon: 'fa-solid fa-gamepad', label: 'Challenges', tour: 'nav-challenges' },
+        { to: '/dashboard/sandbox', icon: 'fa-solid fa-code', label: 'Code Sandbox' },
+        { to: '/dashboard/external', icon: 'fa-solid fa-globe', label: 'External Courses' },
+      ],
+    },
+    {
+      section: 'My progress',
+      items: [
+        { to: '/dashboard/progress', icon: 'fa-solid fa-chart-line', label: 'My Progress', tour: 'nav-progress' },
+        { to: '/dashboard/reviews', icon: 'fa-solid fa-star', label: 'My Reviews' },
+        { to: '/dashboard/achievements', icon: 'fa-solid fa-medal', label: 'Achievements' },
+        { to: '/dashboard/leaderboard', icon: 'fa-solid fa-trophy', label: 'Leaderboard' },
+      ],
+    },
+    {
+      section: 'Talk',
+      items: [
+        { to: '/dashboard/messages', icon: 'fa-solid fa-message', label: 'Messages', tour: 'nav-messages' },
+        { to: '/dashboard/channels', icon: 'fa-solid fa-people-group', label: 'Learning Team' },
+        { to: '/dashboard/announcements', icon: 'fa-solid fa-bullhorn', label: 'Announcements' },
+        { to: '/dashboard/notifications', icon: 'fa-solid fa-bell', label: 'Notifications' },
+      ],
+    },
   ],
   parent: [
-    { to: '/dashboard', icon: 'fa-solid fa-children', label: 'Children', end: true },
-    { to: '/dashboard/schedule', icon: 'fa-solid fa-table-cells', label: 'Schedule' },
-    { to: '/dashboard/sessions', icon: 'fa-solid fa-calendar-days', label: 'Sessions' },
-    { to: '/dashboard/tasks', icon: 'fa-solid fa-list-check', label: 'Tasks' },
-    { to: '/dashboard/submissions', icon: 'fa-solid fa-paper-plane', label: 'Submissions' },
-    { to: '/dashboard/exams', icon: 'fa-solid fa-pen-to-square', label: 'Exams' },
-    { to: '/dashboard/canvas', icon: 'fa-solid fa-pen-ruler', label: 'Canvas' },
-    { to: '/dashboard/external', icon: 'fa-solid fa-globe', label: 'External Courses' },
-    { to: '/dashboard/announcements', icon: 'fa-solid fa-bullhorn', label: 'Announcements' },
-    { to: '/dashboard/notifications', icon: 'fa-solid fa-bell', label: 'Notifications' },
-    { to: '/dashboard/channels', icon: 'fa-solid fa-people-group', label: 'Learning Team' },
-    { to: '/dashboard/messages', icon: 'fa-solid fa-message', label: 'Messages' },
-    { to: '/dashboard/progress', icon: 'fa-solid fa-chart-line', label: 'Children Progress' },
-    { to: '/dashboard/leaderboard', icon: 'fa-solid fa-trophy', label: 'Leaderboard' },
+    {
+      section: 'My children',
+      items: [
+        { to: '/dashboard', icon: 'fa-solid fa-children', label: 'Children', end: true, tour: 'nav-overview' },
+        { to: '/dashboard/progress', icon: 'fa-solid fa-chart-line', label: 'Children Progress', tour: 'nav-progress' },
+        { to: '/dashboard/schedule', icon: 'fa-solid fa-table-cells', label: 'Schedule', tour: 'nav-schedule' },
+        { to: '/dashboard/sessions', icon: 'fa-solid fa-calendar-days', label: 'Sessions' },
+        { to: '/dashboard/leaderboard', icon: 'fa-solid fa-trophy', label: 'Leaderboard' },
+      ],
+    },
+    {
+      section: 'Their work',
+      items: [
+        { to: '/dashboard/tasks', icon: 'fa-solid fa-list-check', label: 'Tasks', tour: 'nav-tasks' },
+        { to: '/dashboard/submissions', icon: 'fa-solid fa-paper-plane', label: 'Submissions' },
+        { to: '/dashboard/exams', icon: 'fa-solid fa-pen-to-square', label: 'Exams' },
+        { to: '/dashboard/canvas', icon: 'fa-solid fa-pen-ruler', label: 'Canvas' },
+        { to: '/dashboard/external', icon: 'fa-solid fa-globe', label: 'External Courses' },
+      ],
+    },
+    {
+      section: 'Talk',
+      items: [
+        { to: '/dashboard/messages', icon: 'fa-solid fa-message', label: 'Messages', tour: 'nav-messages' },
+        { to: '/dashboard/channels', icon: 'fa-solid fa-people-group', label: 'Learning Team' },
+        { to: '/dashboard/announcements', icon: 'fa-solid fa-bullhorn', label: 'Announcements' },
+        { to: '/dashboard/notifications', icon: 'fa-solid fa-bell', label: 'Notifications' },
+      ],
+    },
   ],
   instructor: [
-    { to: '/dashboard', icon: 'fa-solid fa-house', label: 'Overview', end: true },
-    { to: '/dashboard/schedule', icon: 'fa-solid fa-table-cells', label: 'Schedule' },
-    { to: '/dashboard/sessions', icon: 'fa-solid fa-calendar-days', label: 'Sessions' },
-    { to: '/dashboard/tasks', icon: 'fa-solid fa-list-check', label: 'Tasks' },
-    { to: '/dashboard/submissions', icon: 'fa-solid fa-inbox', label: 'Submissions' },
-    { to: '/dashboard/exams', icon: 'fa-solid fa-pen-to-square', label: 'Exams' },
-    { to: '/dashboard/canvas', icon: 'fa-solid fa-pen-ruler', label: 'Canvas' },
-    { to: '/dashboard/reviews', icon: 'fa-solid fa-star', label: 'Reviews' },
-    { to: '/dashboard/announcements', icon: 'fa-solid fa-bullhorn', label: 'Announcements' },
-    { to: '/dashboard/notifications', icon: 'fa-solid fa-bell', label: 'Notifications' },
-    { to: '/dashboard/channels', icon: 'fa-solid fa-people-group', label: 'Learning Team' },
-    { to: '/dashboard/messages', icon: 'fa-solid fa-message', label: 'Messages' },
-    { to: '/dashboard/progress', icon: 'fa-solid fa-chart-bar', label: 'Progress Reports' },
-    { to: '/dashboard/leaderboard', icon: 'fa-solid fa-trophy', label: 'Leaderboard' },
-    { to: '/dashboard/challenges/manage', icon: 'fa-solid fa-gears', label: 'Manage Challenges' },
-    { to: '/dashboard/sandbox', icon: 'fa-solid fa-code', label: 'Code Sandbox' },
+    {
+      section: 'Teaching',
+      items: [
+        { to: '/dashboard', icon: 'fa-solid fa-house', label: 'Overview', end: true },
+        { to: '/dashboard/schedule', icon: 'fa-solid fa-table-cells', label: 'Schedule' },
+        { to: '/dashboard/sessions', icon: 'fa-solid fa-calendar-days', label: 'Sessions' },
+        { to: '/dashboard/tasks', icon: 'fa-solid fa-list-check', label: 'Tasks' },
+        { to: '/dashboard/submissions', icon: 'fa-solid fa-inbox', label: 'Submissions' },
+        { to: '/dashboard/exams', icon: 'fa-solid fa-pen-to-square', label: 'Exams' },
+        { to: '/dashboard/canvas', icon: 'fa-solid fa-pen-ruler', label: 'Canvas' },
+      ],
+    },
+    {
+      section: 'Students',
+      items: [
+        { to: '/dashboard/reviews', icon: 'fa-solid fa-star', label: 'Reviews' },
+        { to: '/dashboard/progress', icon: 'fa-solid fa-chart-bar', label: 'Progress Reports' },
+        { to: '/dashboard/leaderboard', icon: 'fa-solid fa-trophy', label: 'Leaderboard' },
+        { to: '/dashboard/challenges/manage', icon: 'fa-solid fa-gears', label: 'Manage Challenges' },
+        { to: '/dashboard/sandbox', icon: 'fa-solid fa-code', label: 'Code Sandbox' },
+      ],
+    },
+    {
+      section: 'Talk',
+      items: [
+        { to: '/dashboard/messages', icon: 'fa-solid fa-message', label: 'Messages' },
+        { to: '/dashboard/channels', icon: 'fa-solid fa-people-group', label: 'Learning Team' },
+        { to: '/dashboard/announcements', icon: 'fa-solid fa-bullhorn', label: 'Announcements' },
+        { to: '/dashboard/notifications', icon: 'fa-solid fa-bell', label: 'Notifications' },
+      ],
+    },
   ],
   admin: [
-    { to: '/dashboard', icon: 'fa-solid fa-house', label: 'Overview', end: true },
-    { to: '/dashboard/schedule', icon: 'fa-solid fa-table-cells', label: 'Schedule' },
-    { to: '/dashboard/users', icon: 'fa-solid fa-users', label: 'Users' },
-    { to: '/dashboard/profiles', icon: 'fa-solid fa-id-card', label: 'Student Profiles' },
-    { to: '/dashboard/sessions', icon: 'fa-solid fa-calendar-days', label: 'Sessions' },
-    { to: '/dashboard/tasks', icon: 'fa-solid fa-list-check', label: 'Tasks' },
-    { to: '/dashboard/submissions', icon: 'fa-solid fa-inbox', label: 'Submissions' },
-    { to: '/dashboard/exams', icon: 'fa-solid fa-pen-to-square', label: 'Exams' },
-    { to: '/dashboard/canvas', icon: 'fa-solid fa-pen-ruler', label: 'Canvas' },
-    { to: '/dashboard/reviews', icon: 'fa-solid fa-star', label: 'Reviews' },
-    { to: '/dashboard/external', icon: 'fa-solid fa-globe', label: 'External Courses' },
-    { to: '/dashboard/announcements', icon: 'fa-solid fa-bullhorn', label: 'Announcements' },
-    { to: '/dashboard/notifications', icon: 'fa-solid fa-bell', label: 'Notifications' },
-    { to: '/dashboard/audit-logs', icon: 'fa-solid fa-shield-halved', label: 'Audit Logs' },
-    { to: '/dashboard/messages', icon: 'fa-solid fa-message', label: 'Messages' },
-    { to: '/dashboard/progress', icon: 'fa-solid fa-chart-bar', label: 'Progress Reports' },
-    { to: '/dashboard/leaderboard', icon: 'fa-solid fa-trophy', label: 'Leaderboard' },
-    { to: '/dashboard/challenges/manage', icon: 'fa-solid fa-gears', label: 'Manage Challenges' },
-    { to: '/dashboard/sandbox', icon: 'fa-solid fa-code', label: 'Code Sandbox' },
+    {
+      section: 'Overview',
+      items: [
+        { to: '/dashboard', icon: 'fa-solid fa-house', label: 'Overview', end: true },
+        { to: '/dashboard/schedule', icon: 'fa-solid fa-table-cells', label: 'Schedule' },
+      ],
+    },
+    {
+      section: 'People',
+      items: [
+        { to: '/dashboard/users', icon: 'fa-solid fa-users', label: 'Users' },
+        { to: '/dashboard/profiles', icon: 'fa-solid fa-id-card', label: 'Student Profiles' },
+      ],
+    },
+    {
+      section: 'Teaching',
+      items: [
+        { to: '/dashboard/sessions', icon: 'fa-solid fa-calendar-days', label: 'Sessions' },
+        { to: '/dashboard/tasks', icon: 'fa-solid fa-list-check', label: 'Tasks' },
+        { to: '/dashboard/submissions', icon: 'fa-solid fa-inbox', label: 'Submissions' },
+        { to: '/dashboard/exams', icon: 'fa-solid fa-pen-to-square', label: 'Exams' },
+        { to: '/dashboard/canvas', icon: 'fa-solid fa-pen-ruler', label: 'Canvas' },
+        { to: '/dashboard/reviews', icon: 'fa-solid fa-star', label: 'Reviews' },
+        { to: '/dashboard/external', icon: 'fa-solid fa-globe', label: 'External Courses' },
+        { to: '/dashboard/challenges/manage', icon: 'fa-solid fa-gears', label: 'Manage Challenges' },
+        { to: '/dashboard/sandbox', icon: 'fa-solid fa-code', label: 'Code Sandbox' },
+      ],
+    },
+    {
+      section: 'Insights',
+      items: [
+        { to: '/dashboard/progress', icon: 'fa-solid fa-chart-bar', label: 'Progress Reports' },
+        { to: '/dashboard/leaderboard', icon: 'fa-solid fa-trophy', label: 'Leaderboard' },
+        { to: '/dashboard/audit-logs', icon: 'fa-solid fa-shield-halved', label: 'Audit Logs' },
+      ],
+    },
+    {
+      section: 'Talk',
+      items: [
+        { to: '/dashboard/messages', icon: 'fa-solid fa-message', label: 'Messages' },
+        { to: '/dashboard/announcements', icon: 'fa-solid fa-bullhorn', label: 'Announcements' },
+        { to: '/dashboard/notifications', icon: 'fa-solid fa-bell', label: 'Notifications' },
+      ],
+    },
   ],
 };
 
@@ -110,7 +192,8 @@ const DashboardLayout = () => {
   useScrollReveal();
 
   const role = user?.role || 'student';
-  const navItems = navConfig[role] || navConfig.student;
+  const navSections = navConfig[role] || navConfig.student;
+  const navItems = useMemo(() => navSections.flatMap((group) => group.items), [navSections]);
   const portalLabel = roleLabels[role] || 'Portal';
   const userName = user?.FullName || user?.UserName || 'User';
 
@@ -119,6 +202,85 @@ const DashboardLayout = () => {
   const avatarUrl = getAvatarUrl(avatarSeed, userName, 80);
   const avatarSrc = user?.avatar || avatarUrl;
   const userInitials = userName.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2) || 'U';
+
+  // Name shown on the loading screen: the sidebar label for this page, or the
+  // closest parent section (e.g. a child page under Tasks), or a neutral word.
+  const pageLabel = (() => {
+    const match = navItems
+      .filter((item) => location.pathname === item.to || location.pathname.startsWith(`${item.to}/`))
+      .sort((a, b) => b.to.length - a.to.length)[0];
+    if (location.pathname === '/dashboard/account') return 'your account';
+    return match ? match.label : 'page';
+  })();
+
+  // Warm the code for every page this role can reach, while the browser is
+  // idle, so a click only has to wait for data.
+  useEffect(() => preloadDashboardPages(navItems.map((item) => item.to)), [navItems]);
+
+  // One highlight that glides to the active link, instead of the fill jumping
+  // from one row to the next. Positioned by writing to the DOM directly: it is
+  // pure presentation, and state here would re-render the whole layout on
+  // every navigation and resize.
+  const navRef = useRef(null);
+  const indicatorRef = useRef(null);
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    const indicator = indicatorRef.current;
+    if (!nav || !indicator) return undefined;
+
+    const place = () => {
+      const active = nav.querySelector('.nav-item.active');
+      if (!active) {
+        indicator.style.opacity = '0';
+        return;
+      }
+      indicator.style.opacity = '1';
+      indicator.style.transform = `translateY(${active.offsetTop}px)`;
+      indicator.style.height = `${active.offsetHeight}px`;
+      indicator.style.left = `${active.offsetLeft}px`;
+      indicator.style.width = `${active.offsetWidth}px`;
+    };
+
+    place();
+    // The first placement must not slide in from the top of the menu.
+    const frame = requestAnimationFrame(() => indicator.classList.add('is-ready'));
+    window.addEventListener('resize', place);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('resize', place);
+    };
+  }, [location.pathname, sidebarOpen, navItems]);
+
+  // A new page opens at the top. Back/forward is left to the browser, which
+  // restores the previous position.
+  const navigationType = useNavigationType();
+  useLayoutEffect(() => {
+    if (navigationType !== 'POP') window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname, navigationType]);
+
+  // First-visit introduction for students and parents. It starts on the home
+  // page, once, and the header's help button replays it from anywhere.
+  const firstName = (user?.FullName || '').split(/\s+/)[0];
+  const tourSteps = useMemo(() => tourStepsFor(role, firstName), [role, firstName]);
+  const [tourOpen, setTourOpen] = useState(false);
+  useEffect(() => {
+    if (!tourSteps || !user?._id || location.pathname !== '/dashboard' || hasSeenTour(user._id)) return undefined;
+    // Give the home page a moment to load, so the tour opens on a page that
+    // is already there.
+    const timer = setTimeout(() => setTourOpen(true), 1200);
+    return () => clearTimeout(timer);
+  }, [tourSteps, user?._id, location.pathname]);
+
+  const startTour = () => {
+    if (location.pathname !== '/dashboard') navigate('/dashboard');
+    if (window.innerWidth <= 900) setSidebarOpen(false);
+    setTourOpen(true);
+  };
+
+  const finishTour = (outcome) => {
+    if (user?._id) markTourSeen(user._id, outcome);
+    setTourOpen(false);
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -163,18 +325,30 @@ const DashboardLayout = () => {
           </div>
         )}
 
-        <nav className="sidebar-nav">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end || false}
-              className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}
-              onClick={() => { if (window.innerWidth <= 900) closeSidebar(); }}
-            >
-              <span className="icon"><i className={item.icon} /></span>
-              {sidebarOpen && <span className="label">{item.label}</span>}
-            </NavLink>
+        <nav className="sidebar-nav" ref={navRef}>
+          <span className="nav-indicator" ref={indicatorRef} aria-hidden="true" />
+          {navSections.map((group, groupIndex) => (
+            <React.Fragment key={group.section}>
+              {sidebarOpen ? (
+                <span className="nav-section">{group.section}</span>
+              ) : (
+                groupIndex > 0 && <span className="nav-section-rule" aria-hidden="true" />
+              )}
+              {group.items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end || false}
+                  className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}
+                  onClick={() => { if (window.innerWidth <= 900) closeSidebar(); }}
+                  data-tour={item.tour}
+                  title={sidebarOpen ? undefined : item.label}
+                >
+                  <span className="icon"><i className={item.icon} /></span>
+                  {sidebarOpen && <span className="label">{item.label}</span>}
+                </NavLink>
+              ))}
+            </React.Fragment>
           ))}
         </nav>
 
@@ -193,15 +367,34 @@ const DashboardLayout = () => {
               className="toggle-sidebar-btn-mobile"
               onClick={() => setSidebarOpen(true)}
               aria-label="Open sidebar"
+              data-tour="menu"
             >
               <i className="fa-solid fa-bars" />
             </button>
-            <h3>{portalLabel}</h3>
+            <h3>
+              <span className="header-portal">{portalLabel}</span>
+              <span className="header-sep" aria-hidden="true">/</span>
+              <span className="header-page">{pageLabel === 'your account' ? 'Account' : pageLabel}</span>
+            </h3>
           </div>
 
           <div className="header-right">
             {role === 'student' && <GamificationWidget />}
-            <NotificationBell />
+            {tourSteps && (
+              <button
+                type="button"
+                className="theme-toggle-icon tour-help-btn"
+                onClick={startTour}
+                aria-label="Show me around"
+                title="Show me around"
+                data-tour="help"
+              >
+                <i className="fa-solid fa-circle-question" />
+              </button>
+            )}
+            <span className="header-bell" data-tour="notifications">
+              <NotificationBell />
+            </span>
             <button className="theme-toggle-icon" onClick={toggleTheme} title="Toggle Theme" aria-label="Toggle theme">
               <i className={theme === 'light' ? 'fa-solid fa-moon' : 'fa-solid fa-sun'} />
             </button>
@@ -218,14 +411,16 @@ const DashboardLayout = () => {
         </header>
 
         <div className="dashboard-content">
-          <div key={location.pathname} className="page-animate">
+          <PageStage pathname={location.pathname} label={pageLabel}>
             <Outlet />
-          </div>
+          </PageStage>
         </div>
       </div>
 
       {/* Pixel pet — students only */}
       {role === 'student' && <Pet />}
+
+      {tourOpen && tourSteps && <GuidedTour steps={tourSteps} onFinish={finishTour} />}
     </div>
   );
 };

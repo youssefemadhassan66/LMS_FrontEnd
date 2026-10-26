@@ -1,0 +1,267 @@
+/* ═══ GUIDED TOUR ═══
+   A dimmed page with one element cut out, and a card that explains it. */
+
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  pointer-events: none;
+}
+
+.tour__blocker {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+}
+
+/* The cut-out. Its enormous shadow is the dimmed page around it, so moving
+   the spot from one element to the next glides the whole mask. */
+.tour__spot {
+  position: fixed;
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 3px var(--brand-primary),
+    0 0 0 9999px rgba(2, 6, 23, 0.68);
+  transition:
+    top 0.45s cubic-bezier(0.65, 0, 0.35, 1),
+    left 0.45s cubic-bezier(0.65, 0, 0.35, 1),
+    width 0.45s cubic-bezier(0.65, 0, 0.35, 1),
+    height 0.45s cubic-bezier(0.65, 0, 0.35, 1),
+    border-radius 0.45s ease;
+  animation: tourDim 0.35s ease-out both;
+}
+
+.tour__spot:not(.is-empty)::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  border: 2px solid var(--brand-primary);
+  animation: tourPulse 1.8s ease-out 0.5s infinite;
+}
+
+.tour__spot.is-empty {
+  border-radius: 50%;
+  box-shadow: 0 0 0 9999px rgba(2, 6, 23, 0.68);
+}
+
+.tour__card {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: min(360px, calc(100vw - 24px));
+  box-sizing: border-box;
+  padding: 1.15rem 1.2rem 1rem;
+  border-radius: 16px;
+  background: var(--card-bg);
+  border: var(--border-width) solid var(--border-color);
+  box-shadow:
+    0 24px 60px -16px rgba(2, 6, 23, 0.6),
+    0 0 0 1px color-mix(in srgb, var(--brand-primary) 18%, transparent);
+  color: var(--text-primary);
+  pointer-events: auto;
+  opacity: 0;
+  transition:
+    top 0.45s cubic-bezier(0.65, 0, 0.35, 1),
+    left 0.45s cubic-bezier(0.65, 0, 0.35, 1),
+    opacity 0.25s ease;
+}
+
+.tour__card.is-placed { opacity: 1; }
+
+.tour__card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  border-radius: 16px 16px 0 0;
+  background: linear-gradient(90deg, var(--brand-primary), var(--info) 55%, var(--success));
+}
+
+.tour__content {
+  animation: tourContentIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.tour__top {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.65rem;
+}
+
+.tour__icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--brand-primary) 16%, transparent);
+  color: var(--brand-primary);
+  font-size: 1rem;
+  animation: tourIconPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.08s both;
+}
+
+.tour__count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tour__skip {
+  margin-left: auto;
+  padding: 0.25rem 0.4rem;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.tour__skip:hover { color: var(--text-primary); text-decoration: underline; }
+
+.tour__title {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  line-height: 1.3;
+}
+
+.tour__body {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.tour__note {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.tour__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.tour__dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tour__dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border-color);
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.tour__dots .is-done { background: color-mix(in srgb, var(--brand-primary) 50%, var(--border-color)); }
+.tour__dots .is-current { width: 18px; background: var(--brand-primary); }
+
+.tour__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.tour__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.95rem;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tour__btn:active { transform: scale(0.96); }
+
+.tour__btn:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+.tour__btn--primary {
+  border: 0;
+  background: var(--brand-primary);
+  color: #fff;
+  box-shadow: 0 6px 16px -8px var(--brand-primary);
+}
+
+.tour__btn--primary:hover { background: var(--brand-primary-hover); }
+.tour__btn--primary i { transition: transform 0.2s ease; }
+.tour__btn--primary:hover i { transform: translateX(3px); }
+
+.tour__btn--ghost {
+  border: 1.5px solid var(--border-color);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.tour__btn--ghost:hover { background: var(--bg-tertiary); }
+
+@keyframes tourDim {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes tourPulse {
+  0%   { opacity: 0.9; transform: scale(1); }
+  100% { opacity: 0;   transform: scale(1.08); }
+}
+
+@keyframes tourContentIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes tourIconPop {
+  from { transform: scale(0.4) rotate(-20deg); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+
+@media (max-width: 600px) {
+  .tour__card {
+    width: calc(100vw - 24px);
+    padding: 1rem 1rem 0.9rem;
+  }
+  .tour__btn { padding: 0.6rem 0.9rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour__spot,
+  .tour__card {
+    transition: opacity 0.15s ease;
+  }
+  .tour__spot,
+  .tour__spot::after,
+  .tour__content,
+  .tour__icon {
+    animation: none !important;
+  }
+}

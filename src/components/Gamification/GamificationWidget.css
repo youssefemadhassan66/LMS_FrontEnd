@@ -1,0 +1,79 @@
+/* Level, XP, streak and badges in the student header. One link: it opens
+   My achievements, where each of these is explained. */
+.xp-widget {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 40px;
+  padding: 4px 12px;
+  background: var(--card-bg);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: 2px 2px 0 var(--shadow-color);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  text-decoration: none;
+  user-select: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+a.xp-widget:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--shadow-color);
+  border-color: var(--brand-primary);
+  text-decoration: none;
+}
+
+a.xp-widget:active { transform: translate(1px, 1px); box-shadow: none; }
+a.xp-widget:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+
+.xp-widget.is-loading { opacity: 0.7; color: var(--text-muted); }
+
+.xp-widget i { font-size: 0.9rem; }
+
+.xp-widget__level,
+.xp-widget__streak,
+.xp-widget__badges {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+/* Theme colours, not the --accent-* fills: in the dark theme those are navy
+   and maroon, and the flame and medal disappeared into the header. */
+.xp-widget__level i  { color: var(--data-review); }
+.xp-widget__streak i { color: #F97316; }
+.xp-widget__badges i { color: var(--data-score); }
+
+.xp-widget__bar {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  width: 90px;
+}
+
+.xp-widget__xp {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.xp-widget__track {
+  height: 7px;
+  border-radius: 99px;
+  background: var(--bg-tertiary);
+  overflow: hidden;
+}
+
+.xp-widget__track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand-primary);
+  transition: width 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+}

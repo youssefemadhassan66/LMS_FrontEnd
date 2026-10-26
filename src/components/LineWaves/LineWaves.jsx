@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import './LineWaves.css';
+import logger from '../../utils/logger';
 
 /* ── helpers ────────────────────────────────────────────────── */
 function hexToVec3(hex) {
@@ -148,7 +149,7 @@ export default function LineWaves({
     gl.shaderSource(s, src);
     gl.compileShader(s);
     if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-      console.error('Shader error:', gl.getShaderInfoLog(s));
+      logger.error('Shader error:', gl.getShaderInfoLog(s));
       gl.deleteShader(s);
       return null;
     }
@@ -171,7 +172,7 @@ export default function LineWaves({
       antialias: true,
     });
     if (!gl) {
-      console.warn('WebGL unavailable');
+      logger.warn('WebGL unavailable');
       return;
     }
     glRef.current = gl;
@@ -184,7 +185,7 @@ export default function LineWaves({
     gl.attachShader(prog, fs);
     gl.linkProgram(prog);
     if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-      console.error('Program error:', gl.getProgramInfoLog(prog));
+      logger.error('Program error:', gl.getProgramInfoLog(prog));
       return;
     }
     gl.useProgram(prog);

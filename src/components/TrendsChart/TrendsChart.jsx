@@ -4,50 +4,45 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import useFetchData from '../../hooks/useFetchData';
+import ChartTooltip from './ChartTooltip';
+import '../../pages/Dashboard/Insights.css';
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const formatPeriodLabel = (period = {}) => {
-  if (period.week != null) return `${period.year}-W${String(period.week).padStart(2, '0')}`;
-  if (period.month != null) return `${period.year}-${String(period.month).padStart(2, '0')}`;
+  if (period.week != null) return `Week ${period.week}`;
+  if (period.month != null) return `${MONTHS[period.month - 1] || period.month} ${period.year}`;
   return '—';
 };
 
-const TooltipBox = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{
-      background: 'var(--card-bg)',
-      border: '2px solid var(--border-color)',
-      borderRadius: 'var(--radius-sm)',
-      padding: '0.55rem 0.85rem',
-      boxShadow: '4px 4px 0 var(--shadow-color)',
-      fontSize: '0.82rem',
-      minWidth: 140,
-    }}>
-      <p style={{ margin: '0 0 0.35rem', fontWeight: 800 }}>{label}</p>
-      {payload.map((p, i) => (
-        <p key={i} style={{ margin: '0.15rem 0', color: p.color }}>
-          {p.name}: <strong>{typeof p.value === 'number' ? p.value.toFixed(1) : p.value}</strong>
-        </p>
-      ))}
-    </div>
-  );
-};
+const formatValue = (value) => (Number.isInteger(value) ? value : value.toFixed(1));
+
+/** Rows from a trends endpoint, as numbers on the chart's scale. */
+const toChartRows = (rawRows, metrics) => rawRows.map((row) => {
+  const out = { label: formatPeriodLabel(row.period) };
+  metrics.forEach((m) => {
+    const v = row[m.key];
+    const n = typeof v === 'number' ? v : (v == null ? null : Number(v));
+    out[m.key] = n == null || Number.isNaN(n) ? null : n * (m.scale || 1);
+  });
+  return out;
+});
 
 /**
- * Reusable line-chart panel that fetches a Progress-Trends endpoint
- * and plots one or more numeric metrics over time.
+ * Line chart of one progress measure over time.
  *
  * Props:
- *   endpoint     — full URL (e.g. `/api/v1/progress/me/reviews?period=monthly`)
- *   title        — panel heading
- *   icon         — Font Awesome class (optional)
- *   metrics      — [{ key, label, color, unit?, domain? }]
+ *   endpoint     — trends URL to fetch, when `rows` is not given
+ *   rows         — already-fetched trend rows (skips the request)
+ *   title, icon  — panel heading
+ *   metrics      — [{ key, label, color, scale? }]
  *   yDomain      — [min, max] for the Y axis (defaults to auto)
- *   emptyMessage — text shown when API returns no periods
+ *   emptyMessage — text shown when there is nothing to plot
  *   height       — chart height in px (default 240)
  */
 const TrendsChart = ({
   endpoint,
+  rows: givenRows,
   title,
   icon,
   metrics,
@@ -55,49 +50,48 @@ const TrendsChart = ({
   emptyMessage = 'Not enough data yet to chart trends.',
   height = 240,
 }) => {
-  const { data, loading, error } = useFetchData(endpoint || null);
+  const { data, loading, error } = useFetchData(givenRows ? null : endpoint || null);
 
-  const rawRows = Array.isArray(data) ? data : (data?.data || data?.docs || []);
-
-  const rows = rawRows.map(row => {
-    const out = { label: formatPeriodLabel(row.period) };
-    metrics.forEach(m => {
-      const v = row[m.key];
-      out[m.key] = typeof v === 'number' ? v : (v == null ? null : Number(v));
-    });
-    return out;
-  });
-
-  const hasData = rows.length > 0 && metrics.some(m => rows.some(r => r[m.key] != null));
+  const rawRows = givenRows || (Array.isArray(data) ? data : (data?.data || data?.docs || []));
+  const rows = toChartRows(rawRows, metrics);
+  const plotted = metrics.filter((m) => rows.some((r) => r[m.key] != null));
+  const busy = !givenRows && loading;
 
   return (
-    <div className="glass-panel" style={{ padding: '1.25rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
-        <h3 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: '1.05rem', fontWeight: 700 }}>
-          {icon && <i className={icon} style={{ marginRight: '0.5rem', color: 'var(--brand-primary)' }} />}
-          {title}
-        </h3>
-        {loading && (
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Loading…
-          </span>
-        )}
+    <div className="ins-panel">
+      <div className="ins-panel__head">
+        <h3>{icon && <i className={icon} />}{title}</h3>
+        {busy && <span className="ins-panel__meta">Loading…</span>}
       </div>
 
-      {error && (
-        <p style={{ color: 'var(--error, #ef4444)', fontSize: '0.85rem', margin: 0 }}>
+      {error && !givenRows && (
+        <p className="ins-panel__meta" style={{ color: 'var(--error)', margin: 0 }}>
           Could not load trends: {error}
         </p>
       )}
 
-      {!error && !loading && !hasData && (
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>{emptyMessage}</p>
+      {!error && !busy && plotted.length === 0 && (
+        <p className="ins-panel__meta" style={{ margin: 0 }}>{emptyMessage}</p>
       )}
 
-      {hasData && (
+      {/* One period is one number: a lone dot on an empty chart read as a
+          broken graph. */}
+      {plotted.length > 0 && rows.length === 1 && (
+        <div className="ins-single">
+          {plotted.map((m) => (
+            <div key={m.key} className="ins-single__item" style={{ '--tone': m.color }}>
+              <span>{m.label}</span>
+              <strong>{formatValue(rows[0][m.key])}</strong>
+            </div>
+          ))}
+          <p className="ins-single__hint">{rows[0].label} so far. The line starts once there is a second period to compare.</p>
+        </div>
+      )}
+
+      {plotted.length > 0 && rows.length > 1 && (
         <ResponsiveContainer width="100%" height={height}>
           <LineChart data={rows} margin={{ top: 6, right: 10, left: -10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
             <XAxis
               dataKey="label"
               tick={{ fontSize: 11, fill: 'var(--text-muted)', fontWeight: 600 }}
@@ -110,14 +104,11 @@ const TrendsChart = ({
               axisLine={false}
               tickLine={false}
             />
-            <Tooltip content={<TooltipBox />} />
-            {metrics.length > 1 && (
-              <Legend
-                wrapperStyle={{ fontSize: '0.78rem', fontWeight: 600 }}
-                iconType="circle"
-              />
+            <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'var(--border-color)', strokeDasharray: '3 3' }} />
+            {plotted.length > 1 && (
+              <Legend wrapperStyle={{ fontSize: '0.78rem', fontWeight: 600 }} iconType="circle" />
             )}
-            {metrics.map(m => (
+            {plotted.map((m) => (
               <Line
                 key={m.key}
                 type="monotone"
@@ -125,8 +116,8 @@ const TrendsChart = ({
                 name={m.label}
                 stroke={m.color}
                 strokeWidth={2.5}
-                dot={{ r: 4, fill: m.color }}
-                activeDot={{ r: 6 }}
+                dot={{ r: 3.5, fill: m.color, strokeWidth: 0 }}
+                activeDot={{ r: 6, strokeWidth: 2, stroke: 'var(--card-bg)' }}
                 connectNulls
               />
             ))}

@@ -1,21 +1,23 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import PageLoader from './Loading/PageLoader';
 
 /**
  * Wraps a route and enforces authentication + optional role checks.
  *
  * While the AuthContext is still verifying the stored token on first load
- * (initializing === true) we render nothing — this prevents a flash-redirect
- * to /login that would happen if we checked isAuthenticated before the silent
- * refresh has had a chance to complete.
+ * (initializing === true) we show the loading screen rather than redirecting —
+ * checking isAuthenticated before the silent refresh completes would bounce a
+ * signed-in user to /login. It used to render nothing, which on a slow
+ * connection was several seconds of blank page.
  */
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const location = useLocation();
   const { user, isAuthenticated, initializing } = useAuth();
 
-  // Still checking stored token — render nothing to avoid a flash
+  // Still checking the stored token.
   if (initializing) {
-    return null;
+    return <PageLoader fullScreen />;
   }
 
   // Not authenticated — redirect to login, preserving the intended destination

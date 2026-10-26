@@ -186,8 +186,8 @@ const Home = () => {
             from their very first line of code all the way to building their own games and websites.
           </p>
           <div className="hero-actions">
-            <Link to="/login" className="nb-btn nb-btn-primary nb-btn-lg">
-              <i className="fa-solid fa-play" /> Start Learning Free
+            <Link to="/signup" className="nb-btn nb-btn-primary nb-btn-lg">
+              <i className="fa-solid fa-play" /> Try First Session Free
             </Link>
             <Link to="/about" className="nb-btn nb-btn-secondary nb-btn-lg">
               <i className="fa-solid fa-circle-info" /> See What We Teach
@@ -360,11 +360,12 @@ const Home = () => {
         <span className="hm-tick"><i className="fa-solid fa-laptop-code" /> Get started</span>
         <h2 className="hm-title">Ready to write your first line of code?</h2>
         <p className="hm-sub">
-          Join AlgoGambit and start building real things from day one. No experience needed.
+          Join AlgoGambit and start building real things from day one. No experience needed,
+          and your first session is free.
         </p>
         <div className="hm-close-actions">
-          <Link to="/login" className="nb-btn nb-btn-primary nb-btn-lg">
-            <i className="fa-solid fa-arrow-right" /> Get Started — It is Free
+          <Link to="/signup" className="nb-btn nb-btn-primary nb-btn-lg">
+            <i className="fa-solid fa-arrow-right" /> Get Started
           </Link>
           <Link to="/contact" className="nb-btn nb-btn-secondary nb-btn-lg">
             <i className="fa-solid fa-envelope" /> Talk to Us

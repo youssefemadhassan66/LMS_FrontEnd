@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getAvatarUrl } from '../../utils/avatar';
+import AccountConnections from './AccountConnections';
 import './DashboardOverview.css';
 
 const quickLinksByRole = {
@@ -44,7 +45,6 @@ const AccountProfilePage = () => {
     ['Username', user?.UserName || 'Not set'],
     ['Email', user?.Email || 'Not set'],
     ['Role', role],
-    ['Account ID', user?._id || 'Not available'],
   ];
 
   return (
@@ -120,6 +120,8 @@ const AccountProfilePage = () => {
           </div>
         </section>
       </div>
+
+      <AccountConnections role={role} />
     </div>
   );
 };

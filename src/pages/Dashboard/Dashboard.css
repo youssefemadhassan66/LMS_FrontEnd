@@ -1,0 +1,293 @@
+/* ══════════════════════════════════════════════════════════════
+   DASHBOARD PRIMITIVES
+
+   The dashboard pages were written with their layout in inline style props —
+   over a thousand of them across thirty pages. A style prop cannot hold a
+   media query, so none of that layout could respond to width no matter what
+   breakpoints the shell around it declared. These are the pieces those props
+   were describing over and over, written once, in a place where a breakpoint
+   can reach them.
+
+   Imported by DashboardLayout, so every page under the dashboard has them
+   without importing anything itself.
+
+   Grids here count their columns at each breakpoint rather than using
+   auto-fit. auto-fit decides from available width alone, which strands a
+   lone card on a row of its own the moment the item count is not a multiple
+   of the column count; a declared count cannot.
+══════════════════════════════════════════════════════════════ */
+
+/* ─── Page shell ─────────────────────────────────────────────
+   The vertical rhythm a page sits in. .dashboard-content already owns the
+   horizontal inset at each width, so this only adds the top and bottom. */
+.dash-page {
+  padding: 2rem 0;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .dash-page {
+    padding: 1.25rem 0;
+  }
+}
+
+/* ─── Page heading ───────────────────────────────────────────
+   Title on one side, the page's primary action on the other, and both on
+   their own line once there is no room for two. */
+.dash-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  min-width: 0;
+}
+
+.dash-head-titles {
+  min-width: 0;
+}
+
+.dash-title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: clamp(1.4rem, 4.5vw, 2rem);
+  font-weight: 800;
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* The icon is decoration on the title; it should shrink with it rather than
+   holding a fixed size while the words around it get smaller. */
+.dash-title > i {
+  font-size: 0.85em;
+  flex: none;
+}
+
+.dash-subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+@media (max-width: 900px) {
+  .dash-head {
+    margin-bottom: 1.25rem;
+  }
+}
+
+/* Below this the action goes full width: a button sitting alone on its own
+   line reads as unfinished unless it owns the line. */
+@media (max-width: 560px) {
+  .dash-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dash-head-actions,
+  .dash-head-actions > * {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ─── Button clusters ────────────────────────────────────────
+   Row actions, form footers, filter buttons: anywhere several controls sit
+   together and must be allowed to wrap rather than overflow. */
+.dash-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.dash-actions.is-end {
+  justify-content: flex-end;
+}
+
+/* ─── Filter and control rows ────────────────────────────────
+   Selects, date ranges and search boxes. A grid rather than a flex row, so
+   the controls keep a common width instead of each taking its content's,
+   and so the count can drop cleanly at each breakpoint. */
+.dash-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  align-items: end;
+}
+
+@media (min-width: 600px) {
+  .dash-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1000px) {
+  .dash-filters {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* A control that needs the whole row whatever the breakpoint — a search
+   field, usually, where a half-width box truncates what you typed. */
+.dash-filters .is-wide {
+  grid-column: 1 / -1;
+}
+
+.dash-filters label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.dash-filters input,
+.dash-filters select {
+  width: 100%;
+  min-width: 0;
+}
+
+/* ─── Tables ─────────────────────────────────────────────────
+   The important one. A table's width is set by its content: it will not
+   shrink below the widest cell in each column no matter what percentage you
+   give it. Panels around these tables were clipping with overflow: hidden,
+   so on a narrow screen the last columns were simply cut off the edge with
+   no way to reach them.
+
+   The wrapper scrolls instead. min-width on the table keeps the columns
+   legible while it does — without it the browser crushes them to fit and
+   the scroll never happens. */
+.dash-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.dash-table-wrap > table {
+  width: 100%;
+  min-width: 44rem;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+/* A denser table — more columns, so it needs more room before scrolling. */
+.dash-table-wrap.is-wide > table {
+  min-width: 60rem;
+}
+
+/* The panel a scrolling table sits in cannot clip its own overflow, or the
+   scroll container inside it is clipped with it. Rounding is kept on the
+   wrapper instead. */
+.dash-panel {
+  border-radius: var(--radius-lg, 1rem);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.dash-panel > .dash-table-wrap {
+  border-radius: inherit;
+}
+
+/* ─── Card grids ─────────────────────────────────────────────
+   Lists of records shown as cards: sessions, tasks, courses, submissions. */
+.dash-cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  min-width: 0;
+}
+
+@media (min-width: 700px) {
+  .dash-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1200px) {
+  .dash-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Cards carrying a paragraph rather than a line or two want a wider column,
+   so they hold two across at most. */
+.dash-cards.is-roomy {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 900px) {
+  .dash-cards.is-roomy {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ─── Stat tiles ─────────────────────────────────────────────
+   The counted numbers at the top of the overview pages. Two across on a
+   phone rather than one: they are short, and a column of four single tiles
+   pushes everything else off the first screen. */
+.dash-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+@media (min-width: 700px) {
+  .dash-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+  }
+}
+
+.dash-stats.is-trio {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 700px) {
+  .dash-stats.is-trio {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ─── Two-column split ──────────────────────────────────────
+   A main column with a rail beside it — detail pages, message lists. Stacks
+   below the breakpoint, main column first. */
+.dash-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+@media (min-width: 1000px) {
+  .dash-split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
+    align-items: start;
+  }
+}
+
+/* ─── Long values ────────────────────────────────────────────
+   Emails, meeting links and file names have no spaces to break at, and one
+   of them is enough to push a whole table or card wider than the screen. */
+.dash-break {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}
+
+/* Truncate instead, where the full value is not the point. */
+.dash-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}

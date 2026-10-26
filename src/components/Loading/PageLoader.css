@@ -1,0 +1,186 @@
+/* Loading screen for page navigation and app start-up.
+   Quiet on purpose: one mark, one line of text, one moving bar. It sits where
+   the page will appear, so the sidebar and header stay put and the eye does
+   not have to jump when the content arrives. */
+
+.page-loader {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding-top: clamp(4rem, 18vh, 10rem);
+  color: var(--text-secondary);
+  /* Fades in rather than popping, so a loader that only just made it past the
+     show delay does not flash. */
+  animation: pageLoaderIn 0.2s ease-out both;
+}
+
+.page-loader--full {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  align-items: center;
+  padding-top: 0;
+  background: var(--bg-primary);
+}
+
+.page-loader__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.page-loader__mark {
+  display: inline-flex;
+  border-radius: 50%;
+  animation: pageLoaderBreathe 1.6s ease-in-out infinite;
+}
+
+.page-loader__text {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* Indeterminate bar: a short segment travelling across a thin track. */
+.page-loader__track {
+  position: relative;
+  width: 168px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+}
+
+.page-loader__bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  border-radius: inherit;
+  background: var(--brand-primary);
+  animation: pageLoaderSlide 1.1s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@keyframes pageLoaderIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes pageLoaderBreathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(0.94); }
+}
+
+@keyframes pageLoaderSlide {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(250%); }
+}
+
+/* No travelling bar or breathing mark for people who ask for less motion; a
+   steady half-filled bar still says "working". */
+@media (prefers-reduced-motion: reduce) {
+  .page-loader,
+  .page-loader__mark,
+  .page-loader__bar {
+    animation: none;
+  }
+  .page-loader__bar {
+    width: 50%;
+    transform: none;
+  }
+}
+
+/* ── Dashboard page stage ─────────────────────────────────────────────────
+   Wraps the routed page. While a newly opened page is still loading its code
+   or first data, the page is kept out of sight (and inert) and the loader is
+   shown in its place; once it has settled, it fades in. */
+.page-stage {
+  position: relative;
+  min-height: 60vh;
+}
+
+.page-stage__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+}
+
+.page-stage__content {
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  transition: opacity 0.22s ease-out, transform 0.32s var(--ease-out-quart);
+}
+
+.page-stage.is-pending .page-stage__content {
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: none;
+}
+
+/* ── Entrance ─────────────────────────────────────────────────────────────
+   Plays once, as a page appears: its sections, the first rows of a table and
+   the first cards rise into place a beat apart. Scoped to .is-entering (about
+   0.7s after reveal), so filtering a list later does not replay it. Transform
+   and opacity only; nothing that moves layout. */
+@keyframes stageRise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes stageGrowX {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+.page-stage.is-entering .page-stage__content > * > *,
+.page-stage.is-entering tbody > tr,
+.page-stage.is-entering .users-card {
+  animation: stageRise 0.36s var(--ease-out-quart) both;
+}
+
+/* Sections of the page, top to bottom. */
+.page-stage.is-entering .page-stage__content > * > :nth-child(2) { animation-delay: 40ms; }
+.page-stage.is-entering .page-stage__content > * > :nth-child(3) { animation-delay: 80ms; }
+.page-stage.is-entering .page-stage__content > * > :nth-child(4) { animation-delay: 120ms; }
+.page-stage.is-entering .page-stage__content > * > :nth-child(5) { animation-delay: 160ms; }
+.page-stage.is-entering .page-stage__content > * > :nth-child(n + 6) { animation-delay: 200ms; }
+
+/* Rows and cards: a short cascade for the first screenful, then together. */
+.page-stage.is-entering tbody > tr:nth-child(1),
+.page-stage.is-entering .users-card:nth-child(1) { animation-delay: 120ms; }
+.page-stage.is-entering tbody > tr:nth-child(2),
+.page-stage.is-entering .users-card:nth-child(2) { animation-delay: 150ms; }
+.page-stage.is-entering tbody > tr:nth-child(3),
+.page-stage.is-entering .users-card:nth-child(3) { animation-delay: 180ms; }
+.page-stage.is-entering tbody > tr:nth-child(4),
+.page-stage.is-entering .users-card:nth-child(4) { animation-delay: 210ms; }
+.page-stage.is-entering tbody > tr:nth-child(5),
+.page-stage.is-entering .users-card:nth-child(5) { animation-delay: 240ms; }
+.page-stage.is-entering tbody > tr:nth-child(n + 6),
+.page-stage.is-entering .users-card:nth-child(n + 6) { animation-delay: 270ms; }
+
+/* Progress bars fill from empty as the page arrives. */
+.page-stage.is-entering .progress-bar {
+  transform-origin: left center;
+  animation: stageGrowX 0.7s var(--ease-out-quart) 0.15s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-stage__content {
+    transition: none;
+  }
+  .page-stage.is-pending .page-stage__content {
+    transform: none;
+  }
+  .page-stage.is-entering *,
+  .page-stage.is-entering .page-stage__content > * > * {
+    animation: none !important;
+  }
+}

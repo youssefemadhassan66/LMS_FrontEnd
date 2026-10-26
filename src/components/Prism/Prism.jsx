@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import './Prism.css';
+import logger from '../../utils/logger';
 
 /* ── shaders ────────────────────────────────────────────────── */
 const vertexShader = `
@@ -187,7 +188,7 @@ const Prism = ({
       powerPreference: 'low-power'
     });
     if (!gl) {
-      console.warn('WebGL not supported');
+      logger.warn('WebGL not supported');
       return;
     }
 
@@ -201,7 +202,7 @@ const Prism = ({
       gl.shaderSource(s, src);
       gl.compileShader(s);
       if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-        console.error('Shader compilation error:', gl.getShaderInfoLog(s));
+        logger.error('Shader compilation error:', gl.getShaderInfoLog(s));
         gl.deleteShader(s);
         return null;
       }
@@ -215,7 +216,7 @@ const Prism = ({
     gl.attachShader(prog, fs);
     gl.linkProgram(prog);
     if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-      console.error('Program link error:', gl.getProgramInfoLog(prog));
+      logger.error('Program link error:', gl.getProgramInfoLog(prog));
       return;
     }
     gl.useProgram(prog);

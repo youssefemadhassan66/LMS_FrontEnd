@@ -5,6 +5,7 @@ import Pagination from '../../components/Pagination/Pagination';
 import { SkeletonCardGrid } from '../../components/Skeleton/Skeleton';
 import { normalizeAppLink } from '../../utils/appLinks';
 import { notificationIcon } from '../../utils/notificationIcons';
+import logger from '../../utils/logger';
 
 const NotificationsPage = () => {
   const {
@@ -51,7 +52,7 @@ const NotificationsPage = () => {
       // Update local state to reflect read status
       setNotificationsList((prev) => prev.map((n) => ({ ...n, isRead: true })));
     } catch (err) {
-      console.error(err);
+      logger.error(err);
     }
   };
 
@@ -63,7 +64,7 @@ const NotificationsPage = () => {
         prev.map((n) => (n._id === id ? { ...n, isRead: true } : n))
       );
     } catch (err) {
-      console.error(err);
+      logger.error(err);
     }
   };
 
@@ -75,7 +76,7 @@ const NotificationsPage = () => {
           prev.map((n) => (n._id === notif._id ? { ...n, isRead: true } : n))
         );
       } catch (err) {
-        console.error(err);
+        logger.error(err);
       }
     }
     if (notif.link) {

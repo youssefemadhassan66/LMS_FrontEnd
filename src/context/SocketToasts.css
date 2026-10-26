@@ -1,0 +1,123 @@
+/* Live toasts: notifications, XP, level-ups and badges. A card in the page
+   colours with the type's tone on its edge and icon. They used to be filled
+   with the tone, which drew the icon (in the same tone) invisibly. */
+.socket-toasts {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(350px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.socket-toast {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  pointer-events: auto;
+  background: var(--card-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-left: 5px solid var(--tone);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  color: var(--text-primary);
+  overflow: hidden;
+  animation: toastIn 0.4s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+.socket-toast__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 0 0.85rem 0.9rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+button.socket-toast__main { cursor: pointer; }
+button.socket-toast__main:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: -2px; }
+.socket-toast:has(button.socket-toast__main:hover) { border-color: var(--tone); }
+
+.socket-toast__icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 1.1rem;
+  background: color-mix(in srgb, var(--tone) 16%, transparent);
+  color: var(--tone);
+}
+
+.socket-toast.is-xp .socket-toast__icon,
+.socket-toast.is-level .socket-toast__icon,
+.socket-toast.is-badge .socket-toast__icon {
+  animation: toastIconPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s both;
+}
+
+.socket-toast__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.socket-toast__text strong {
+  overflow: hidden;
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.socket-toast.is-xp .socket-toast__text strong { color: var(--tone); }
+
+.socket-toast__text span {
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.socket-toast__close {
+  flex-shrink: 0;
+  align-self: flex-start;
+  width: 32px;
+  height: 32px;
+  margin: 0.35rem 0.35rem 0 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.socket-toast__close:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes toastIconPop {
+  from { transform: scale(0.3) rotate(-25deg); }
+  to   { transform: none; }
+}
+
+@media (max-width: 600px) {
+  .socket-toasts { right: 16px; bottom: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .socket-toast,
+  .socket-toast__icon { animation: none !important; }
+}

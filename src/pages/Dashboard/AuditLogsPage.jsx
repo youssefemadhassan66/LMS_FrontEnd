@@ -2,6 +2,11 @@ import React, { useMemo, useState } from 'react';
 import useFetchData from '../../hooks/useFetchData';
 import { SkeletonTableRows } from '../../components/Skeleton/Skeleton';
 import useMediaQuery from '../../hooks/useMediaQuery';
+import { timeAgo } from '../../utils/timeAgo';
+import './DashboardOverview.css';
+import './Insights.css';
+
+const PAGE_SIZE = 100;
 
 const getLogs = (data) => {
   if (Array.isArray(data)) return data;
@@ -34,13 +39,13 @@ const FAILURE_REASONS = {
 };
 
 const ACTION_TONES = {
-  login: 'var(--success, #10b981)',
-  signup: 'var(--info, #3b82f6)',
-  approve_user: 'var(--success, #10b981)',
-  login_failed: 'var(--error, #ef4444)',
-  reject_user: 'var(--error, #ef4444)',
-  bootstrap_admin_denied: 'var(--error, #ef4444)',
-  bootstrap_admin: 'var(--warning, #f59e0b)',
+  login: 'var(--success)',
+  signup: 'var(--info)',
+  approve_user: 'var(--success)',
+  login_failed: 'var(--error)',
+  reject_user: 'var(--error)',
+  bootstrap_admin_denied: 'var(--error)',
+  bootstrap_admin: 'var(--warning)',
 };
 
 const CATEGORIES = [
@@ -50,6 +55,9 @@ const CATEGORIES = [
   { id: 'signup', label: 'Sign-ups', actions: ['signup'] },
   { id: 'approvals', label: 'Approvals', actions: ['approve_user', 'reject_user'] },
 ];
+
+// Meta keys already shown in words. Anything else is worth the details view.
+const SHOWN_META = new Set(['userAgent', 'reason', 'subjectEmail', 'subjectName']);
 
 const labelFor = (action) => ACTION_LABELS[action] || action;
 
@@ -64,60 +72,125 @@ const actorNameFor = (log) => {
 
 const actorDetailFor = (log) => log.actor?.Email || log.actorEmail || log.actorRole || '-';
 
+/** "Chrome on Windows" from a user-agent string; scripts are named as such. */
+const deviceFrom = (ua = '') => {
+  if (!ua) return '';
+  if (/^(node|curl|axios|python|postman|insomnia|okhttp)/i.test(ua)) return 'Script or API client';
+  const browser = /Edg\//.test(ua) ? 'Edge'
+    : /OPR\//.test(ua) ? 'Opera'
+      : /Firefox\//.test(ua) ? 'Firefox'
+        : /Chrome\//.test(ua) ? 'Chrome'
+          : /Safari\//.test(ua) ? 'Safari' : '';
+  const os = /iPhone|iPad/.test(ua) ? 'iOS'
+    : /Android/.test(ua) ? 'Android'
+      : /Windows/.test(ua) ? 'Windows'
+        : /Mac OS X/.test(ua) ? 'macOS'
+          : /Linux/.test(ua) ? 'Linux' : '';
+  return [browser, os].filter(Boolean).join(' on ') || 'Unknown device';
+};
+
+const placeFrom = (ip) => {
+  if (!ip) return '—';
+  if (/^(::1$|127\.|::ffff:127\.)/.test(ip)) return 'Local (this server)';
+  return ip.replace(/^::ffff:/, '');
+};
+
+const sameDay = (a, b) =>
+  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+const dayLabel = (date) => {
+  const today = new Date();
+  const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+  if (sameDay(date, today)) return 'Today';
+  if (sameDay(date, yesterday)) return 'Yesterday';
+  return date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+};
+
+/** Consecutive logs that share a calendar day, newest first as given. */
+const groupByDay = (logs) => {
+  const groups = [];
+  for (const log of logs) {
+    const date = log.createdAt ? new Date(log.createdAt) : null;
+    const key = date ? date.toDateString() : 'unknown';
+    const last = groups[groups.length - 1];
+    if (last?.key === key) last.logs.push(log);
+    else groups.push({ key, label: date ? dayLabel(date) : 'No date', logs: [log] });
+  }
+  return groups;
+};
+
+const timeOf = (log) =>
+  log.createdAt ? new Date(log.createdAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '—';
+
 const ActionChip = ({ action }) => (
-  <span
-    className="modal-chip"
-    style={{
-      borderColor: ACTION_TONES[action],
-      color: ACTION_TONES[action],
-      whiteSpace: 'nowrap',
-    }}
-  >
+  <span className="audit-chip" style={{ '--tone': ACTION_TONES[action] || 'var(--text-muted)' }}>
     {labelFor(action)}
   </span>
 );
 
 // The reason lives in meta, but an admin scanning the page should not have to
 // open the JSON to learn why a sign-in was refused.
-const ReasonLine = ({ log }) => {
+const EventNotes = ({ log }) => {
   const reason = FAILURE_REASONS[log.meta?.reason];
-  if (!reason) return null;
+  const subject = log.meta?.subjectEmail ? (log.meta.subjectName || log.meta.subjectEmail) : null;
   return (
-    <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: '0.2rem' }}>{reason}</div>
+    <>
+      {reason && <div className="audit-sub">{reason}</div>}
+      {subject && <div className="audit-sub">{subject}</div>}
+    </>
   );
 };
 
-const cardFieldLabelStyle = {
-  color: 'var(--text-muted)',
-  fontSize: '0.72rem',
-  fontWeight: 700,
-  textTransform: 'uppercase',
-  letterSpacing: '0.03em',
+const ExtraDetails = ({ log }) => {
+  const extra = Object.entries(log.meta || {}).filter(([key]) => !SHOWN_META.has(key));
+  const hasTarget = log.targetModel && log.targetId && log.targetId !== log.actor?._id;
+  if (!extra.length && !hasTarget) return null;
+  return (
+    <details className="audit-details">
+      <summary>Details</summary>
+      <dl>
+        {hasTarget && (
+          <>
+            <dt>{log.targetModel}</dt>
+            <dd>{log.targetId}</dd>
+          </>
+        )}
+        {extra.map(([key, value]) => (
+          <React.Fragment key={key}>
+            <dt>{key}</dt>
+            <dd>{typeof value === 'object' ? JSON.stringify(value) : String(value)}</dd>
+          </React.Fragment>
+        ))}
+      </dl>
+    </details>
+  );
 };
-
-// One label/value pair inside a mobile log card. `breakAll` is for the ids and
-// addresses that have no spaces to wrap at.
-const CardField = ({ label, children, breakAll }) => (
-  <div style={{ display: 'grid', gap: '0.1rem' }}>
-    <span style={cardFieldLabelStyle}>{label}</span>
-    <span
-      style={{
-        fontSize: '0.85rem',
-        color: 'var(--text-secondary)',
-        overflowWrap: breakAll ? 'anywhere' : 'break-word',
-      }}
-    >
-      {children}
-    </span>
-  </div>
-);
 
 const AuditLogsPage = () => {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
+  // Fixed when the page opens, so the summary does not drift between renders.
+  const [openedAt] = useState(() => Date.now());
   const isMobile = useMediaQuery('(max-width: 720px)');
-  const { data, loading, error } = useFetchData('/api/v1/audit-logs?sort=-createdAt&limit=100');
+  const { data, loading, error } = useFetchData(`/api/v1/audit-logs?sort=-createdAt&limit=${PAGE_SIZE}`);
   const logs = getLogs(data);
+
+  const counts = useMemo(() => Object.fromEntries(CATEGORIES.map((entry) => [
+    entry.id,
+    entry.actions ? logs.filter((log) => entry.actions.includes(log.action)).length : logs.length,
+  ])), [logs]);
+
+  // A quick read of the last day, before anyone scrolls.
+  const summary = useMemo(() => {
+    const dayAgo = openedAt - 24 * 3600 * 1000;
+    const recent = logs.filter((log) => new Date(log.createdAt).getTime() >= dayAgo);
+    return {
+      signIns: recent.filter((log) => log.action === 'login').length,
+      people: new Set(recent.filter((log) => log.action === 'login').map((log) => log.actor?._id || log.actorEmail)).size,
+      failed: recent.filter((log) => log.action === 'login_failed' || log.action === 'bootstrap_admin_denied').length,
+      signUps: recent.filter((log) => log.action === 'signup').length,
+    };
+  }, [logs, openedAt]);
 
   const filteredLogs = useMemo(() => {
     const actions = CATEGORIES.find((entry) => entry.id === category)?.actions;
@@ -131,199 +204,170 @@ const AuditLogsPage = () => {
       const subject = `${log.meta?.subjectEmail || ''} ${log.meta?.subjectName || ''}`;
       // Search the readable label too, so "failed" finds login_failed.
       const haystack =
-        `${log.action || ''} ${labelFor(log.action)} ${log.targetModel || ''} ${log.targetId || ''} ${log.actorRole || ''} ${actor} ${subject}`.toLowerCase();
+        `${log.action || ''} ${labelFor(log.action)} ${log.targetModel || ''} ${log.targetId || ''} ${log.actorRole || ''} ${actor} ${subject} ${log.ip || ''}`.toLowerCase();
       return haystack.includes(needle);
     });
   }, [logs, query, category]);
 
+  const days = useMemo(() => groupByDay(filteredLogs), [filteredLogs]);
+
   return (
-    <div style={{ padding: '2rem 0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '2rem' }}>Audit Logs</h1>
-          <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)' }}>{filteredLogs.length} of {logs.length} events</p>
+    <div className="overview-container">
+      <div className="ins-head">
+        <div className="ins-head__text">
+          <h1 className="page-title">Audit log</h1>
+          <p className="page-subtitle">
+            Sign-ins, sign-ups and account approvals. Showing the latest {PAGE_SIZE} events.
+          </p>
         </div>
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search action, actor, model..."
-          style={{
-            flex: '1 1 260px',
-            minWidth: 0,
-            padding: '0.65rem 0.85rem',
-            border: '2px solid var(--border-color)',
-            borderRadius: 'var(--radius-sm)',
-            background: 'var(--card-bg)',
-            color: 'var(--text-primary)',
-          }}
-        />
       </div>
 
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
-        {CATEGORIES.map((entry) => {
-          const active = entry.id === category;
-          return (
+      {!loading && logs.length > 0 && (
+        <section aria-labelledby="audit-last-day">
+          <h2 id="audit-last-day" className="audit-summary-title">Last 24 hours</h2>
+          <div className="audit-summary">
+            <div className="audit-stat" style={{ '--tone': 'var(--success)' }}>
+              <i className="fa-solid fa-right-to-bracket" />
+              <div>
+                <strong>{summary.signIns}</strong>
+                <span>sign-ins</span>
+                {summary.people > 0 && <small>by {summary.people} {summary.people === 1 ? 'person' : 'people'}</small>}
+              </div>
+            </div>
+            <div className={`audit-stat${summary.failed ? ' is-alert' : ''}`} style={{ '--tone': summary.failed ? 'var(--error)' : 'var(--text-muted)' }}>
+              <i className={summary.failed ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-shield-halved'} />
+              <div>
+                <strong>{summary.failed}</strong>
+                <span>failed sign-ins</span>
+                {summary.failed > 0 && <small>worth a look</small>}
+              </div>
+            </div>
+            <div className="audit-stat" style={{ '--tone': 'var(--info)' }}>
+              <i className="fa-solid fa-user-plus" />
+              <div>
+                <strong>{summary.signUps}</strong>
+                <span>new sign-ups</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <div className="ins-toolbar">
+        <label className="ins-search">
+          <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search people, emails, actions or IPs"
+            aria-label="Search the audit log"
+          />
+        </label>
+        <div className="ins-seg audit-filters" role="group" aria-label="Kind of event">
+          {CATEGORIES.map((entry) => (
             <button
               key={entry.id}
               type="button"
               onClick={() => setCategory(entry.id)}
-              aria-pressed={active}
-              style={{
-                padding: '0.4rem 0.9rem',
-                borderRadius: '999px',
-                border: `2px solid ${active ? 'var(--text-primary)' : 'var(--border-color)'}`,
-                background: active ? 'var(--text-primary)' : 'transparent',
-                color: active ? 'var(--card-bg)' : 'var(--text-secondary)',
-                fontWeight: 700,
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-              }}
+              aria-pressed={entry.id === category}
             >
               {entry.label}
+              {!loading && <span className="audit-count" aria-hidden="true">{counts[entry.id]}</span>}
             </button>
-          );
-        })}
+          ))}
+        </div>
       </div>
 
-      {error && <p style={{ color: 'var(--error)' }}>{error}</p>}
+      {error && <p style={{ color: 'var(--error)', margin: 0 }}>{error}</p>}
 
       {!loading && filteredLogs.length === 0 && (
-        <div className="glass-panel" style={{ padding: '2rem', textAlign: 'center' }}>
-          <h3>No audit logs found</h3>
-          <p style={{ color: 'var(--text-muted)' }}>
-            {category === 'all'
-              ? 'Important system events will appear here.'
-              : 'No events of this kind yet. Try another filter.'}
+        <div className="ins-panel ins-empty">
+          <i className="fa-solid fa-clipboard-list" />
+          <strong>No audit logs found</strong>
+          <p>
+            {query || category !== 'all'
+              ? 'No events match. Try another search or filter.'
+              : 'Important system events will appear here.'}
           </p>
         </div>
       )}
 
       {!isMobile && (loading || filteredLogs.length > 0) && (
-      <div className="glass-panel" style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--border-color)' }}>
-              <th style={{ padding: '0.8rem' }}>Time</th>
-              <th style={{ padding: '0.8rem' }}>Actor</th>
-              <th style={{ padding: '0.8rem' }}>Action</th>
-              <th style={{ padding: '0.8rem' }}>Target</th>
-              <th style={{ padding: '0.8rem' }}>IP</th>
-              <th style={{ padding: '0.8rem' }}>Meta</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && <SkeletonTableRows rows={8} cols={6} />}
-            {!loading && filteredLogs.map((log) => (
-              <tr key={log._id} style={{ borderBottom: '1px solid var(--border-color)', verticalAlign: 'top' }}>
-                <td style={{ padding: '0.8rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                  {log.createdAt ? new Date(log.createdAt).toLocaleString() : '-'}
-                </td>
-                <td style={{ padding: '0.8rem' }}>
-                  <div style={{ fontWeight: 700 }}>{actorNameFor(log)}</div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{actorDetailFor(log)}</div>
-                </td>
-                <td style={{ padding: '0.8rem' }}>
-                  <ActionChip action={log.action} />
-                  <ReasonLine log={log} />
-                  {log.meta?.subjectEmail && (
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: '0.2rem' }}>
-                      {log.meta.subjectName || log.meta.subjectEmail}
-                    </div>
-                  )}
-                </td>
-                <td style={{ padding: '0.8rem' }}>
-                  <div>{log.targetModel || '-'}</div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{log.targetId || ''}</div>
-                </td>
-                <td style={{ padding: '0.8rem', color: 'var(--text-muted)' }}>{log.ip || '-'}</td>
-                <td style={{ padding: '0.8rem', maxWidth: '320px' }}>
-                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                    {log.meta ? JSON.stringify(log.meta, null, 2) : '-'}
-                  </pre>
-                </td>
+        <div className="ins-panel audit-table-wrap">
+          <table className="audit-table">
+            <thead>
+              <tr>
+                <th scope="col">Time</th>
+                <th scope="col">Who</th>
+                <th scope="col">What happened</th>
+                <th scope="col">From</th>
               </tr>
+            </thead>
+            {loading && <tbody><SkeletonTableRows rows={8} cols={4} /></tbody>}
+            {!loading && days.map((day) => (
+              <tbody key={day.key}>
+                <tr className="audit-day">
+                  <th scope="rowgroup" colSpan={4}>
+                    {day.label}
+                    <span>{day.logs.length} event{day.logs.length === 1 ? '' : 's'}</span>
+                  </th>
+                </tr>
+                {day.logs.map((log) => (
+                  <tr key={log._id}>
+                    <td className="audit-time" title={log.createdAt ? new Date(log.createdAt).toLocaleString() : undefined}>
+                      {timeOf(log)}
+                      <div className="audit-sub">{timeAgo(log.createdAt)}</div>
+                    </td>
+                    <td>
+                      <div className="audit-name">{actorNameFor(log)}</div>
+                      <div className="audit-sub">{actorDetailFor(log)}</div>
+                    </td>
+                    <td>
+                      <ActionChip action={log.action} />
+                      <EventNotes log={log} />
+                      <ExtraDetails log={log} />
+                    </td>
+                    <td>
+                      <div>{placeFrom(log.ip)}</div>
+                      <div className="audit-sub">{deviceFrom(log.meta?.userAgent)}</div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
             ))}
-          </tbody>
-        </table>
-      </div>
-      )}
-
-      {/* Phones: six columns cannot fit, and the pretty-printed meta JSON in
-          the last one stretched every row far past the screen. One card per
-          event instead, with the JSON collapsed behind a disclosure so a row
-          is only as tall as its summary. */}
-      {isMobile && (
-        <div style={{ display: 'grid', gap: '0.75rem' }}>
-          {loading && (
-            <div
-              className="glass-panel"
-              style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600 }}
-            >
-              Loading audit logs...
-            </div>
-          )}
-
-          {!loading && filteredLogs.map((log) => (
-            <div
-              key={log._id}
-              className="glass-panel"
-              style={{ borderRadius: 'var(--radius-md)', padding: '0.9rem 1rem', display: 'grid', gap: '0.6rem' }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'baseline',
-                  justifyContent: 'space-between',
-                  gap: '0.5rem',
-                  flexWrap: 'wrap',
-                }}
-              >
-                <ActionChip action={log.action} />
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                  {log.createdAt ? new Date(log.createdAt).toLocaleString() : '-'}
-                </span>
-              </div>
-
-              <div style={{ display: 'grid', gap: '0.1rem' }}>
-                <span style={{ fontWeight: 700, color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>
-                  {actorNameFor(log)}
-                </span>
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', overflowWrap: 'anywhere' }}>
-                  {actorDetailFor(log)}
-                </span>
-                <ReasonLine log={log} />
-              </div>
-
-              <div style={{ display: 'grid', gap: '0.5rem' }}>
-                <CardField label="Target" breakAll>
-                  {log.targetModel || '-'}
-                  {log.targetId ? (
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}> · {log.targetId}</span>
-                  ) : null}
-                </CardField>
-                <CardField label="IP" breakAll>{log.ip || '-'}</CardField>
-              </div>
-
-              {log.meta && (
-                <details>
-                  <summary style={{ ...cardFieldLabelStyle, cursor: 'pointer' }}>Details</summary>
-                  <pre
-                    style={{
-                      margin: '0.4rem 0 0',
-                      whiteSpace: 'pre-wrap',
-                      overflowWrap: 'anywhere',
-                      fontSize: '0.72rem',
-                      color: 'var(--text-secondary)',
-                    }}
-                  >
-                    {JSON.stringify(log.meta, null, 2)}
-                  </pre>
-                </details>
-              )}
-            </div>
-          ))}
+          </table>
         </div>
       )}
+
+      {/* Phones: one card per event, under the same day headings. */}
+      {isMobile && loading && (
+        <div className="ins-panel ins-empty"><p>Loading audit log…</p></div>
+      )}
+
+      {isMobile && !loading && days.map((day) => (
+        <section key={day.key} className="audit-day-group" aria-label={day.label}>
+          <h2 className="audit-day-title">{day.label}<span>{day.logs.length}</span></h2>
+          {day.logs.map((log) => (
+            <article key={log._id} className="audit-card">
+              <div className="audit-card__top">
+                <ActionChip action={log.action} />
+                <span className="audit-sub">{timeOf(log)}</span>
+              </div>
+              <div>
+                <div className="audit-name">{actorNameFor(log)}</div>
+                <div className="audit-sub">{actorDetailFor(log)}</div>
+                <EventNotes log={log} />
+              </div>
+              <div className="audit-sub">
+                <i className="fa-solid fa-location-dot" aria-hidden="true" /> {placeFrom(log.ip)}
+                {log.meta?.userAgent ? ` · ${deviceFrom(log.meta.userAgent)}` : ''}
+              </div>
+              <ExtraDetails log={log} />
+            </article>
+          ))}
+        </section>
+      ))}
     </div>
   );
 };
