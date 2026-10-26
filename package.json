@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.1",
+    "@fortawesome/fontawesome-free": "6.5.1",
     "lucide-react": "^1.8.0",
     "postprocessing": "^6.39.2",
     "pyodide": "314.0.7",
