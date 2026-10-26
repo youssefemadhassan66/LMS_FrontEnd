@@ -53,6 +53,42 @@ const excalidrawAssetsPlugin = () => ({
   },
 })
 
+// The code sandbox (public/sandbox/sandbox-worker.js) runs Python through
+// Pyodide. The CSP has no CDN in script-src, so the runtime is served from our
+// own origin. These are the only files loadPyodide() needs for the core
+// interpreter and the standard library; no extra packages are fetched.
+const PYODIDE_FILES = [
+  'pyodide.mjs',
+  'pyodide.asm.mjs',
+  'pyodide.asm.wasm',
+  'python_stdlib.zip',
+  'pyodide-lock.json',
+]
+
+const pyodideAssetsPlugin = () => ({
+  name: 'algogambit-pyodide-assets',
+  buildStart() {
+    const source = path.join(projectRoot, 'node_modules/pyodide')
+    const destination = path.join(projectRoot, 'public', 'sandbox', 'pyodide')
+
+    if (!fs.existsSync(source)) {
+      this.warn('pyodide not found — run npm install. The code sandbox will not run Python.')
+      return
+    }
+
+    fs.mkdirSync(destination, { recursive: true })
+    for (const file of PYODIDE_FILES) {
+      const from = path.join(source, file)
+      const to = path.join(destination, file)
+      // ~13 MB in total: only copy what changed since the last dev start/build
+      const current = fs.existsSync(to) ? fs.statSync(to) : null
+      const next = fs.statSync(from)
+      if (current && current.size === next.size && current.mtimeMs >= next.mtimeMs) continue
+      fs.copyFileSync(from, to)
+    }
+  },
+})
+
 const isLocalHostname = (hostname) => (
   hostname === 'localhost' ||
   hostname.endsWith('.localhost') ||
@@ -167,6 +203,7 @@ export default defineConfig(({ command, mode }) => {
     plugins: [
       react(),
       excalidrawAssetsPlugin(),
+      pyodideAssetsPlugin(),
       ...(productionOrigins ? [productionCspPlugin(productionOrigins)] : []),
     ],
 
@@ -176,7 +213,7 @@ export default defineConfig(({ command, mode }) => {
       // holding one open makes chokidar's watch() throw EBUSY, which takes the
       // whole dev server down. Nothing is lost by not watching them.
       watch: {
-        ignored: ['**/public/excalidraw-assets/**'],
+        ignored: ['**/public/excalidraw-assets/**', '**/public/sandbox/pyodide/**'],
       },
       proxy: {
         '/api': {

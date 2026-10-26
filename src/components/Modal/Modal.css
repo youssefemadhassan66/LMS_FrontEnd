@@ -42,6 +42,7 @@
 .modal-panel.modal-sm { max-width: 480px; }
 .modal-panel.modal-md { max-width: 580px; }
 .modal-panel.modal-lg { max-width: 720px; }
+.modal-panel.modal-xl { max-width: 1120px; }
 
 /* Header: a coloured rule on top, the title, and a quiet close button. */
 .modal-header {

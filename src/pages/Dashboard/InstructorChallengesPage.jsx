@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useApiRequest } from '../../hooks/useApiRequest';
 import { safeUrl } from '../../utils/safeUrl';
 import { timeAgo } from '../../utils/timeAgo';
+import { SANDBOX_LANGUAGES, isSandboxLanguage } from '../../utils/codeSandbox';
 import Modal from '../../components/Modal/Modal';
 import { SkeletonCardGrid } from '../../components/Skeleton/Skeleton';
 import './DashboardOverview.css';
@@ -65,6 +66,7 @@ const InstructorChallengesPage = () => {
   const [correctAnswer, setCorrectAnswer] = useState('');
   const [options, setOptions] = useState(['', '']);
 
+  const [codeLanguage, setCodeLanguage] = useState('python');
   const [starterCode, setStarterCode] = useState('');
   const [hints, setHints] = useState(['']);
   const [testCases, setTestCases] = useState([emptyTestCase()]);
@@ -106,6 +108,7 @@ const InstructorChallengesPage = () => {
     setQuestionType('multiple_choice');
     setCorrectAnswer('');
     setOptions(['', '']);
+    setCodeLanguage('python');
     setStarterCode('');
     setHints(['']);
     setTestCases([emptyTestCase()]);
@@ -131,6 +134,8 @@ const InstructorChallengesPage = () => {
       setCorrectAnswer(challenge.puzzleData.correctAnswer || '');
       setOptions(challenge.puzzleData.options?.length ? challenge.puzzleData.options : ['', '']);
     } else if (challenge.type === 'coding' && challenge.codingData) {
+      // Challenges from before the sandbox have no language; they ran as Python
+      setCodeLanguage(isSandboxLanguage(challenge.codingData.language) ? challenge.codingData.language : 'python');
       setStarterCode(challenge.codingData.starterCode || '');
       setHints(challenge.codingData.hints && challenge.codingData.hints.length > 0 ? challenge.codingData.hints : ['']);
       setTestCases(challenge.codingData.testCases?.length ? challenge.codingData.testCases : [emptyTestCase()]);
@@ -185,6 +190,7 @@ const InstructorChallengesPage = () => {
       };
     } else {
       body.codingData = {
+        language: codeLanguage,
         starterCode,
         hints: hints.filter(h => h.trim() !== ''),
         testCases: testCases.filter(tc => tc.input.trim() !== '' && tc.expectedOutput.trim() !== '')
@@ -528,6 +534,14 @@ const InstructorChallengesPage = () => {
             {type === 'coding' && (
               <fieldset className="ins-note" style={{ display: 'block', margin: '0.5rem 0 1rem' }}>
                 <legend className="gm-label" style={{ margin: 0, padding: '0 0.35rem' }}>Coding</legend>
+                <div className="gm-field">
+                  <span>Language (runs in the student's browser)</span>
+                  <div className="ins-seg" role="group" aria-label="Language">
+                    {SANDBOX_LANGUAGES.map((item) => (
+                      <button key={item.value} type="button" aria-pressed={codeLanguage === item.value} onClick={() => setCodeLanguage(item.value)}>{item.label}</button>
+                    ))}
+                  </div>
+                </div>
                 <label className="gm-field">
                   <span>Starter code (optional)</span>
                   <textarea className="gm-code" style={{ minHeight: 140 }} value={starterCode} onChange={(e) => setStarterCode(e.target.value)}
@@ -559,10 +573,10 @@ const InstructorChallengesPage = () => {
                   <span>Test cases (at least one). Visible ones are shown to students as examples.</span>
                   {testCases.map((tc, idx) => (
                     <div key={idx} className="ins-grid-2" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) auto auto', gap: '0.5rem', alignItems: 'center' }}>
-                      <input className="gm-input" value={tc.input} onChange={(e) => updateAt(testCases, setTestCases, idx, { ...tc, input: e.target.value })}
-                        placeholder="Input" aria-label={`Test ${idx + 1} input`} />
-                      <input className="gm-input" value={tc.expectedOutput} onChange={(e) => updateAt(testCases, setTestCases, idx, { ...tc, expectedOutput: e.target.value })}
-                        placeholder="Expected output" aria-label={`Test ${idx + 1} expected output`} />
+                      <textarea className="gm-input" rows={2} value={tc.input} onChange={(e) => updateAt(testCases, setTestCases, idx, { ...tc, input: e.target.value })}
+                        placeholder="Input (stdin)" aria-label={`Test ${idx + 1} input`} spellCheck={false} style={{ resize: 'vertical', fontFamily: 'var(--font-mono, monospace)' }} />
+                      <textarea className="gm-input" rows={2} value={tc.expectedOutput} onChange={(e) => updateAt(testCases, setTestCases, idx, { ...tc, expectedOutput: e.target.value })}
+                        placeholder="Expected output" aria-label={`Test ${idx + 1} expected output`} spellCheck={false} style={{ resize: 'vertical', fontFamily: 'var(--font-mono, monospace)' }} />
                       <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
                         <input type="checkbox" checked={!!tc.isHidden} onChange={(e) => updateAt(testCases, setTestCases, idx, { ...tc, isHidden: e.target.checked })} />
                         Hidden

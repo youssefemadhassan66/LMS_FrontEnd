@@ -36,6 +36,7 @@ export const LessonViewPage = lazyPage(() => import('../pages/Dashboard/LessonVi
 export const AchievementsPage = lazyPage(() => import('../pages/Dashboard/AchievementsPage'));
 export const CanvasPage = lazyPage(() => import('../pages/Dashboard/CanvasPage'));
 export const CanvasBoardPage = lazyPage(() => import('../pages/Dashboard/CanvasBoardPage'));
+export const CodeSandboxPage = lazyPage(() => import('../pages/Dashboard/CodeSandboxPage'));
 
 // Sidebar targets. The heavy whiteboard (CanvasBoardPage) is deliberately not
 // here: it is only reachable from inside a session, not from the sidebar.
@@ -58,6 +59,7 @@ const PAGES_BY_PATH = {
   '/dashboard/achievements': AchievementsPage,
   '/dashboard/challenges': ChallengesPage,
   '/dashboard/challenges/manage': InstructorChallengesPage,
+  '/dashboard/sandbox': CodeSandboxPage,
   '/dashboard/users': UsersPage,
   '/dashboard/profiles': StudentProfilesPage,
   '/dashboard/audit-logs': AuditLogsPage,

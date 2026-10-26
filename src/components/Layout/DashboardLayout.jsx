@@ -38,6 +38,7 @@ const navConfig = {
       items: [
         { to: '/dashboard/canvas', icon: 'fa-solid fa-pen-ruler', label: 'Canvas' },
         { to: '/dashboard/challenges', icon: 'fa-solid fa-gamepad', label: 'Challenges', tour: 'nav-challenges' },
+        { to: '/dashboard/sandbox', icon: 'fa-solid fa-code', label: 'Code Sandbox' },
         { to: '/dashboard/external', icon: 'fa-solid fa-globe', label: 'External Courses' },
       ],
     },
@@ -111,6 +112,7 @@ const navConfig = {
         { to: '/dashboard/progress', icon: 'fa-solid fa-chart-bar', label: 'Progress Reports' },
         { to: '/dashboard/leaderboard', icon: 'fa-solid fa-trophy', label: 'Leaderboard' },
         { to: '/dashboard/challenges/manage', icon: 'fa-solid fa-gears', label: 'Manage Challenges' },
+        { to: '/dashboard/sandbox', icon: 'fa-solid fa-code', label: 'Code Sandbox' },
       ],
     },
     {
@@ -149,6 +151,7 @@ const navConfig = {
         { to: '/dashboard/reviews', icon: 'fa-solid fa-star', label: 'Reviews' },
         { to: '/dashboard/external', icon: 'fa-solid fa-globe', label: 'External Courses' },
         { to: '/dashboard/challenges/manage', icon: 'fa-solid fa-gears', label: 'Manage Challenges' },
+        { to: '/dashboard/sandbox', icon: 'fa-solid fa-code', label: 'Code Sandbox' },
       ],
     },
     {

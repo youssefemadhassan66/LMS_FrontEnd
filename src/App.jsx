@@ -37,6 +37,7 @@ import {
   AchievementsPage,
   CanvasPage,
   CanvasBoardPage,
+  CodeSandboxPage,
 } from "./routes/dashboardPages";
 import { SocketProvider } from "./context/SocketContext";
 import PageLoader from "./components/Loading/PageLoader";
@@ -308,6 +309,19 @@ function App() {
                         ]}
                       >
                         <CanvasBoardPage />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Code runs in the visitor's own browser; nothing to
+                      protect server-side, but parents have no use for it. */}
+                  <Route
+                    path="sandbox"
+                    element={
+                      <ProtectedRoute
+                        allowedRoles={["student", "instructor", "admin"]}
+                      >
+                        <CodeSandboxPage />
                       </ProtectedRoute>
                     }
                   />

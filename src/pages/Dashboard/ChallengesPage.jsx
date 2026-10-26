@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApiRequest } from '../../hooks/useApiRequest';
+import { useAuth } from '../../context/AuthContext';
+import CodeSandbox from '../../components/CodeSandbox/CodeSandbox';
 import Modal from '../../components/Modal/Modal';
 import { SkeletonCardGrid } from '../../components/Skeleton/Skeleton';
 import './DashboardOverview.css';
@@ -101,9 +103,13 @@ const Result = ({ challenge, attempt }) => {
         <p>{view.text}</p>
       </div>
 
+      {attempt.testResults?.total > 0 && (
+        <div className="gm-answer">Tests passed: <strong>{attempt.testResults.passed}/{attempt.testResults.total}</strong></div>
+      )}
+
       {attempt.feedback && (
         <div className="gm-answer">
-          <strong>Feedback from your teacher</strong>
+          <strong>{attempt.gradedBy ? 'Feedback from your teacher' : 'Automatic check'}</strong>
           <p style={{ margin: '0.35rem 0 0', whiteSpace: 'pre-wrap' }}>{attempt.feedback}</p>
         </div>
       )}
@@ -123,6 +129,7 @@ const Result = ({ challenge, attempt }) => {
 
 const ChallengesPage = () => {
   const { request } = useApiRequest();
+  const { user } = useAuth();
   const [challenges, setChallenges] = useState([]);
   const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -146,6 +153,8 @@ const ChallengesPage = () => {
   const [showHintModal, setShowHintModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  // Coding challenges: the challenge with its test inputs (the list has none)
+  const [detail, setDetail] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -210,6 +219,7 @@ const ChallengesPage = () => {
     setCode(challenge.codingData?.starterCode || '');
     setCodeUrl('');
     setHintsRevealed(existing?.hintsUsed || 0);
+    setDetail(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     // Finished attempts are only shown, never restarted: the server allows one.
@@ -218,6 +228,11 @@ const ChallengesPage = () => {
 
     setOpening(true);
     try {
+      // Students get every test input here, hidden ones without the answer
+      if (challenge.type === 'coding') {
+        const full = await request(`/api/v1/challenges/${challenge._id}`);
+        setDetail(full.data?.challenge || challenge);
+      }
       const res = await request(`/api/v1/challenges/${challenge._id}/start`, 'POST');
       if (res.status === 'success') {
         const started = res.data?.attempt || res.data;
@@ -235,6 +250,28 @@ const ChallengesPage = () => {
     setSelected(null);
     setAttempt(null);
     setReload((n) => n + 1);
+  };
+
+  // Called by the sandbox once it has run every test input in the browser. The
+  // server compares the outputs with the expected ones and grades straight away.
+  const submitCode = async ({ code: source, outputs }) => {
+    const testCases = detail?.codingData?.testCases || [];
+    const res = await request(`/api/v1/challenges/${selected._id}/submit-code`, 'POST', {
+      submittedCode: source,
+      codeLinks: codeUrl ? [{ name: 'Repository', url: codeUrl }] : [],
+      hintsUsed: hintsRevealed,
+      // Without test cases there is nothing to compare: the teacher grades it
+      ...(testCases.length > 0 ? { outputs } : {}),
+    });
+    const done = res.data?.attempt || {};
+    setAttempt({ ...attempt, ...done, submittedCode: source });
+    const results = done.testResults || {};
+    return {
+      results: Array.isArray(results.results) ? results.results : [],
+      passed: results.passed,
+      total: results.total,
+      message: res.message || '',
+    };
   };
 
   const confirmRevealHint = async () => {
@@ -286,7 +323,7 @@ const ChallengesPage = () => {
     const state = stateOf(attempt);
     const finished = attempt && state !== 'new' && state !== 'wip';
     const hints = selected.codingData?.hints || [];
-    const examples = (selected.codingData?.testCases || []).filter((t) => !t.isHidden);
+    const examples = ((detail || selected).codingData?.testCases || []).filter((t) => !t.isHidden);
     const options = selected.puzzleData?.options || [];
     const isChoice = selected.type === 'puzzle' && (selected.puzzleData?.questionType === 'multiple_choice' || options.length > 0);
     const penalty = Math.min(hintsRevealed * HINT_PENALTY, MAX_PENALTY);
@@ -377,15 +414,45 @@ const ChallengesPage = () => {
 
             {finished && <Result challenge={selected} attempt={attempt} />}
 
-            {!finished && !opening && !openError && (
-              <form onSubmit={submit}>
+            {!finished && !opening && !openError && selected.type === 'coding' && (
+              <div>
                 <div className="gm-notice">
                   <i className="fa-solid fa-circle-info" />
                   <span>
-                    {selected.type === 'puzzle'
-                      ? <>You get <strong>one try</strong>. Check your answer before you send it.</>
+                    {detail?.codingData?.testCases?.length
+                      ? <>You get <strong>one try</strong>. Run the tests first: submitting runs every test, hidden ones too, and grades it straight away.</>
                       : <>You get <strong>one try</strong>. Your teacher grades the code and you earn XP for the score.</>}
                   </span>
+                </div>
+                {detail ? (
+                  <CodeSandbox
+                    key={selected._id}
+                    language={detail.codingData?.language || 'python'}
+                    initialCode={code}
+                    onCodeChange={setCode}
+                    testCases={detail.codingData?.testCases || []}
+                    onSubmit={submitCode}
+                    submitLabel="Submit solution"
+                    ownerId={user?._id}
+                    editorLabel="Your code"
+                  />
+                ) : (
+                  <p className="ins-panel__meta">Loading the challenge…</p>
+                )}
+                <label className="gm-field" style={{ marginTop: '1rem' }}>
+                  <span>Link to your code (optional, send it before you submit)</span>
+                  <input className="gm-input" type="url" value={codeUrl} onChange={(e) => setCodeUrl(e.target.value)}
+                    placeholder="https://github.com/…" />
+                </label>
+                <small className="ins-panel__meta">Worth up to {maxXp} XP</small>
+              </div>
+            )}
+
+            {!finished && !opening && !openError && selected.type === 'puzzle' && (
+              <form onSubmit={submit}>
+                <div className="gm-notice">
+                  <i className="fa-solid fa-circle-info" />
+                  <span>You get <strong>one try</strong>. Check your answer before you send it.</span>
                 </div>
 
                 {selected.type === 'puzzle' && isChoice && (
@@ -408,21 +475,6 @@ const ChallengesPage = () => {
                     <input className="gm-input" value={answer} onChange={(e) => setAnswer(e.target.value)}
                       placeholder="Type your answer" autoComplete="off" />
                   </label>
-                )}
-
-                {selected.type === 'coding' && (
-                  <>
-                    <label className="gm-field">
-                      <span>Your code</span>
-                      <textarea className="gm-code" value={code} onChange={(e) => setCode(e.target.value)}
-                        spellCheck={false} rows={12} />
-                    </label>
-                    <label className="gm-field">
-                      <span>Link to your code (optional)</span>
-                      <input className="gm-input" type="url" value={codeUrl} onChange={(e) => setCodeUrl(e.target.value)}
-                        placeholder="https://github.com/…" />
-                    </label>
-                  </>
                 )}
 
                 {submitError && <p style={{ color: 'var(--error)', fontWeight: 600, margin: '0 0 0.75rem' }}>{submitError}</p>}
